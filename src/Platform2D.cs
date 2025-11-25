@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -26,7 +27,12 @@ public partial class Platform2D : Polygon2D
 	/// <summary>
 	/// Tool button to refresh the polygon vertexes from child Path2D nodes.
 	/// </summary>
-	[ExportToolButton("Refresh")] Callable ToolButtonRefresh => Callable.From(this.RefreshPolygons);
+	[ExportToolButton("Refresh")] Callable ToolButtonRefresh => Callable.From(this.Refresh);
+
+	[Export] public bool Test;
+
+	[ExportGroup("Collider")]
+	[ExportToolButton("Create Static Collider")] Callable ToolButtonCreateStaticCollider => Callable.From(this.CreateStaticCollider);
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// FIELDS
@@ -42,13 +48,42 @@ public partial class Platform2D : Polygon2D
 	// -----------------------------------------------------------------------------------------------------------------
 
 	/// <summary>
-	/// Alias for <see cref="Polygon2D.Polygon"/>.
+	/// Alias for <see cref="Polygon2D.Polygon"/>. Contains a list of all vertexes that are part of any of the polygons
+	/// in this platform.
 	/// </summary>
-	public Vector2[] Vertexes
+	public Vector2[] AllVertexes
 	{
-		get => this.Polygon;
+		get => this.Polygon ?? [];
 		set => this.Polygon = value;
 	}
+	/// <summary>
+	/// An array of polygons, where each polygon is an array of the vertexes that compose the polygon. This is a "sugar
+	/// property" to ease reading and writing polygon data. (<see cref="Polygon2D.Polygon"/> and
+	/// <see cref="Polygon2D.Polygons"/>)
+	/// </summary>
+	public Vector2[][] PolygonsVertexes
+	{
+		get => this.Polygons.Select(vertexes => vertexes.AsInt32Array().Select(index => this.AllVertexes[index]).ToArray()).ToArray();
+		set
+		{
+			this.AllVertexes = value.SelectMany(vertexes => vertexes).ToArray();
+			this.Polygons = new(
+				value.Select(
+					(polygon, i) => Variant.From(
+						polygon.Select(
+								(_, j) => value.Take(i)
+									.Select(vertexes => vertexes.Length)
+									.Sum()
+									+ j
+							)
+							.ToArray()
+					)
+				)
+			);
+		}
+	}
+	public CollisionObject2D? Collider => this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
+	public IEnumerable<CollisionPolygon2D> CollisionPolygons => this.Collider?.GetChildren().OfType<CollisionPolygon2D>() ?? [];
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// SIGNALS
@@ -60,10 +95,6 @@ public partial class Platform2D : Polygon2D
 	// INTERNAL TYPES
 	// -----------------------------------------------------------------------------------------------------------------
 
-	// private enum Type {
-	// 	Value1,
-	// }
-
 	// -----------------------------------------------------------------------------------------------------------------
 	// GODOT EVENTS
 	// -----------------------------------------------------------------------------------------------------------------
@@ -71,6 +102,7 @@ public partial class Platform2D : Polygon2D
 	public override void _EnterTree()
 	{
 		base._EnterTree();
+		this.PropertyListChanged += this.OnPropertyListChanged;
 		this.ChildEnteredTree += this.OnChildEnteredTree;
 		this.ChildExitingTree += this.OnChildExitingTree;
 	}
@@ -78,6 +110,7 @@ public partial class Platform2D : Polygon2D
 	public override void _ExitTree()
 	{
 		base._ExitTree();
+		this.PropertyListChanged -= this.OnPropertyListChanged;
 		this.ChildEnteredTree -= this.OnChildEnteredTree;
 		this.ChildExitingTree -= this.OnChildExitingTree;
 	}
@@ -85,8 +118,7 @@ public partial class Platform2D : Polygon2D
 	public override void _Ready()
 	{
 		base._Ready();
-		this.RefreshPolygons();
-		this.PropertyListChanged += this.RefreshPolygons;
+		this.Refresh();
 	}
 
 	// public override void _Process(double delta)
@@ -106,34 +138,13 @@ public partial class Platform2D : Polygon2D
 	// METHODS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	public void RefreshPolygons()
-	{
-		if (this.ChildPathsCache.Count == 0)
-		{
-			return;
-		}
-		this.Vertexes = this.ChildPathsCache.SelectMany(path => path.Curve.GetBakedPoints()).ToArray();
-		this.Polygons = this.BuildPolygons();
-	}
-
-	private Godot.Collections.Array BuildPolygons()
-	{
-		Godot.Collections.Array result = new();
-		for (int i = 0; i < this.ChildPathsCache.Count; i++)
-		{
-			int startIndex = this.ChildPathsCache.Take(i).Sum(p => p.Curve.GetBakedPoints().Length);
-			int[] polygonVertexIndexes = Enumerable.Range(startIndex, this.ChildPathsCache[i].Curve.GetBakedPoints().Length).ToArray();
-			result.Add(polygonVertexIndexes);
-		}
-		return result;
-	}
-
 	private void OnChildEnteredTree(Node child)
 	{
 		if (child is Path2D path && path.GetParent() == this)
 		{
+			GD.PrintS("New Path2D child detected.");
 			this.ChildPathsCache.Add(path);
-			path.PropertyListChanged += this.RefreshPolygons;
+			path.PropertyListChanged += this.Refresh;
 		}
 	}
 
@@ -141,8 +152,89 @@ public partial class Platform2D : Polygon2D
 	{
 		if (child is Path2D path)
 		{
-			path.PropertyListChanged -= this.RefreshPolygons;
+			GD.PrintS("Path2D child exiting tree.");
+			path.PropertyListChanged -= this.Refresh;
 			this.ChildPathsCache.Remove(path);
 		}
+	}
+
+	public void Refresh()
+	{
+		this.RefreshPolygonsVertexes();
+		this.RefreshCollisionPolygons();
+	}
+
+	private void RefreshPolygonsVertexes()
+	{
+		if (this.ChildPathsCache.Count() == 0)
+		{
+			return;
+		}
+		this.PolygonsVertexes = this.ChildPathsCache.Select(path =>
+			{
+				Vector2[] vertexes = path.Curve.GetBakedPoints()
+					.Select((vertex, index) => vertex + path.Position)
+					.ToArray();
+				return vertexes.Where((vertex, i) => !IsOmittable(vertexes, i)).ToArray();
+			})
+			.ToArray();
+	}
+
+	private static bool IsOmittable(Vector2[] vertexes, int index)
+	{
+		bool isfirst = index == 0;
+		bool islast = index == vertexes.Length - 1;
+		bool iscurve = !isfirst && !islast && IsCurve(vertexes[index], vertexes[index - 1], vertexes[index + 1]);
+		GD.PrintS(new { index, isfirst, islast, iscurve });
+		return !isfirst && !islast && !iscurve;
+	}
+
+	private static bool IsCurve(Vector2 vertex, Vector2 previous, Vector2 next)
+	{
+		var angle = Math.Abs((vertex - previous).AngleTo(next - vertex));
+		bool iscurve = angle > 0.01f;
+		GD.PrintS(new { vertex, previous, next, angle, iscurve });
+		return iscurve;
+	}
+
+	private void CreateStaticCollider()
+	{
+		CollisionObject2D collider = this.Collider ?? new StaticBody2D() { Name = nameof(StaticBody2D) };
+		if (collider.GetParent() != this)
+		{
+			this.AddChild(collider);
+			collider.Owner = this.Owner;
+		}
+		this.RefreshCollisionPolygons();
+	}
+
+	private void RefreshCollisionPolygons()
+	{
+		if (this.Collider == null)
+		{
+			return;
+		}
+		// Add missing collision polygons
+		this.Polygons.Skip(this.CollisionPolygons.Count()).ToList().ForEach(_ =>
+		{
+			CollisionPolygon2D collisionPolygon = new CollisionPolygon2D() { Name = nameof(CollisionPolygon2D) };
+			this.Collider.AddChild(collisionPolygon);
+			collisionPolygon.Owner = this.Owner;
+		});
+		// Remove extra collision polygons
+		this.CollisionPolygons.Skip(this.Polygons.Count).ToList().ForEach(polygon => polygon.QueueFree());
+		// Update collision polygons
+		CollisionPolygon2D[] collisionPolygons = this.CollisionPolygons.ToArray();
+		for (int i = 0; i < collisionPolygons.Length; i++)
+		{
+			collisionPolygons[i].Polygon = this.Polygons.ElementAt(i).AsInt32Array()
+				.Select(index => this.AllVertexes[index])
+				.ToArray();
+		}
+	}
+
+	private void OnPropertyListChanged()
+	{
+		GD.PrintS($"{nameof(Platform2D)}.{nameof(OnPropertyListChanged)}()");
 	}
 }
