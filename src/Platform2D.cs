@@ -63,7 +63,9 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	public Vector2[][] PolygonsVertexes
 	{
-		get => this.Polygons.Select(vertexes => vertexes.AsInt32Array().Select(index => this.AllVertexes[index]).ToArray()).ToArray();
+		get => this.Polygons.Count > 0
+			? this.Polygons.Select(vertexes => vertexes.AsInt32Array().Select(index => this.AllVertexes[index]).ToArray()).ToArray()
+			: [this.AllVertexes];
 		set
 		{
 			this.AllVertexes = value.SelectMany(vertexes => vertexes).ToArray();
@@ -82,6 +84,7 @@ public partial class Platform2D : Polygon2D
 			);
 		}
 	}
+	public int PolygonCount => this.Polygons.Count > 0 ? this.Polygons.Count : this.AllVertexes.Length > 0 ? 1 : 0;
 	public CollisionObject2D? Collider => this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
 	public IEnumerable<CollisionPolygon2D> CollisionPolygons => this.Collider?.GetChildren().OfType<CollisionPolygon2D>() ?? [];
 
@@ -215,21 +218,19 @@ public partial class Platform2D : Polygon2D
 			return;
 		}
 		// Add missing collision polygons
-		this.Polygons.Skip(this.CollisionPolygons.Count()).ToList().ForEach(_ =>
+		for (int i = 0; i < this.PolygonCount - this.CollisionPolygons.Count(); i++)
 		{
 			CollisionPolygon2D collisionPolygon = new CollisionPolygon2D() { Name = nameof(CollisionPolygon2D) };
 			this.Collider.AddChild(collisionPolygon);
 			collisionPolygon.Owner = this.Owner;
-		});
+		}
 		// Remove extra collision polygons
-		this.CollisionPolygons.Skip(this.Polygons.Count).ToList().ForEach(polygon => polygon.QueueFree());
+		this.CollisionPolygons.Skip(this.PolygonCount).ToList().ForEach(polygon => polygon.QueueFree());
 		// Update collision polygons
 		CollisionPolygon2D[] collisionPolygons = this.CollisionPolygons.ToArray();
 		for (int i = 0; i < collisionPolygons.Length; i++)
 		{
-			collisionPolygons[i].Polygon = this.Polygons.ElementAt(i).AsInt32Array()
-				.Select(index => this.AllVertexes[index])
-				.ToArray();
+			collisionPolygons[i].Polygon = this.PolygonsVertexes[i];
 		}
 	}
 
