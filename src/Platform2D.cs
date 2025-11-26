@@ -130,7 +130,7 @@ public partial class Platform2D : Polygon2D
 	public override void _Process(double delta)
 	{
 		base._Process(delta);
-		if (Engine.IsEditorHint() && this.EdgesSettings.Count(setting => setting.CheckForChanges()) > 0) {
+		if (Engine.IsEditorHint() && this.EdgesSettings.Count(setting => setting.ConsumeChanges()) > 0) {
 			this.RefreshEdges();
 		}
 	}

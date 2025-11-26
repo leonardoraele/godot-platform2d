@@ -113,7 +113,7 @@ public partial class EdgeSettings : Resource
 	// METHODS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	public bool CheckForChanges()
+	public bool ConsumeChanges()
 	{
 		bool result = this.HasChanges;
 		if (result)
