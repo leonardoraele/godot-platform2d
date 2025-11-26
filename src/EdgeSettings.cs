@@ -50,7 +50,7 @@ public partial class EdgeSettings : Resource
 	// PROPERTIES
 	// -----------------------------------------------------------------------------------------------------------------
 
-	private bool HasChanges => this.CheckSum != this.LastCheckSum;
+	private bool HasChanges => !Mathf.IsEqualApprox(this.CheckSum, this.LastCheckSum);
 	private float CheckSum =>
 		this.BeginAngle
 		+ this.EndAngle

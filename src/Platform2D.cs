@@ -89,6 +89,10 @@ public partial class Platform2D : Polygon2D
 	public int PolygonCount => this.Polygons.Count > 0 ? this.Polygons.Count : this.AllVertexes.Length > 0 ? 1 : 0;
 	public CollisionObject2D? Collider => this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
 	public IEnumerable<CollisionPolygon2D> CollisionPolygons => this.Collider?.GetChildren().OfType<CollisionPolygon2D>() ?? [];
+	private float CheckSum =>
+		this.Polygon.Select(vertex => vertex.X + vertex.Y).Sum()
+		+ this.Polygons.SelectMany(polygon => polygon.AsInt32Array()).Sum();
+	private float LastCheckSum = float.NaN;
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// SIGNALS
@@ -130,8 +134,16 @@ public partial class Platform2D : Polygon2D
 	public override void _Process(double delta)
 	{
 		base._Process(delta);
-		if (Engine.IsEditorHint() && this.EdgesSettings.Count(setting => setting.ConsumeChanges()) > 0) {
-			this.RefreshEdges();
+		if (Engine.IsEditorHint())
+		{
+			if (this.ConsumeChanges())
+			{
+				Callable.From(this.Refresh).CallDeferred();
+			}
+			else if (this.EdgesSettings.Count(setting => setting.ConsumeChanges()) > 0)
+			{
+				Callable.From(this.RefreshEdges).CallDeferred();
+			}
 		}
 	}
 
@@ -154,8 +166,19 @@ public partial class Platform2D : Polygon2D
 	// 	=> base._PhysicsProcess(delta);
 
 	// -----------------------------------------------------------------------------------------------------------------
-	// METHODS
+	// EVENT HANDLERS
 	// -----------------------------------------------------------------------------------------------------------------
+
+	private void OnCreateColliderPressed()
+	{
+		CollisionObject2D collider = this.Collider ?? new StaticBody2D() { Name = nameof(StaticBody2D) };
+		if (collider.GetParent() != this)
+		{
+			this.AddChild(collider);
+			collider.Owner = this.Owner;
+		}
+		this.AddChild(collider);
+	}
 
 	private void OnChildEnteredTree(Node child)
 	{
@@ -181,6 +204,14 @@ public partial class Platform2D : Polygon2D
 
 	private void OnPathChanged(Path2D path) => this.Refresh();
 
+	// -----------------------------------------------------------------------------------------------------------------
+	// METHODS
+	// -----------------------------------------------------------------------------------------------------------------
+
+	/// <summary>
+	/// Updates this Polygon2D's vertexes based on child Path2D nodes, and updates child Line2D and collision polygons
+	/// to match the current shape of this Polygon2D. (accounting for edge settings when updating the Line2D nodes)
+	/// </summary>
 	public void Refresh()
 	{
 		this.RefreshPolygonsVertexes();
@@ -193,6 +224,9 @@ public partial class Platform2D : Polygon2D
 			);
 	}
 
+	/// <summary>
+	/// Sets this Polygon2D's vertex positions based on the child Path2D nodes, if any.
+	/// </summary>
 	private void RefreshPolygonsVertexes()
 	{
 		if (this.ChildPathsCache.Count() == 0)
@@ -209,6 +243,12 @@ public partial class Platform2D : Polygon2D
 			.ToArray();
 	}
 
+	/// <summary>
+	/// Determines whether a vertex can be omitted when reconstructing the polygon shape from a Path2D. It checks if
+	/// multiple vertexes are lined up in a straight line and returns true for the ones in the middle. This is an
+	/// important optimization and is necessary because Path2D nodes are always baked based on distance even if multiple
+	/// vertexes are lined up straight.
+	/// </summary>
 	private static bool IsOmittable(Vector2[] vertexes, int index)
 	{
 		bool isfirst = index == 0;
@@ -217,6 +257,9 @@ public partial class Platform2D : Polygon2D
 		return !isfirst && !islast && !iscurve;
 	}
 
+	/// <summary>
+	/// Checks if the angle formed by three vertexes indicates a curve (as opposed to a straight line).
+	/// </summary>
 	private static bool IsCurve(Vector2 vertex, Vector2 previous, Vector2 next)
 	{
 		var angle = Math.Abs((vertex - previous).AngleTo(next - vertex));
@@ -227,6 +270,10 @@ public partial class Platform2D : Polygon2D
 		return iscurve;
 	}
 
+	/// <summary>
+	/// Updates child CollisionPolygon2D nodes to match the shape of this Polygon2D, creating or deleting nodes as
+	/// needed. There should be one CollisionPolygon2D node for each one polygon that exists in this Polygon2D.
+	/// </summary>
 	private void RefreshCollisionPolygons()
 	{
 		if (!this.AutoUpdateColliderEnabled || this.Collider == null)
@@ -253,17 +300,11 @@ public partial class Platform2D : Polygon2D
 		}
 	}
 
-	private void OnCreateColliderPressed()
-	{
-		CollisionObject2D collider = this.Collider ?? new StaticBody2D() { Name = nameof(StaticBody2D) };
-		if (collider.GetParent() != this)
-		{
-			this.AddChild(collider);
-			collider.Owner = this.Owner;
-		}
-		this.AddChild(collider);
-	}
-
+	/// <summary>
+	/// Updates child Line2D points to match the current polygon edges, following the edge settings defined by the user.
+	/// New Line2D nodes are automatically created as needed, reused on future refreshes when possible, and deleted if
+	/// no longer needed.
+	/// </summary>
 	private void RefreshEdges()
 	{
 		HashSet<Line2D> lineSet = new();
@@ -281,7 +322,7 @@ public partial class Platform2D : Polygon2D
 				foreach ((int index, Vector2[] vertexes) segment in edgeInfo.settings.FindSegments(edges).ToList().Index())
 				{
 					string hash = Hash(polygon.index, edgeInfo.index, segment.index);
-					Line2D line = this.GetEdgeLine(hash) ?? this.CreateEdgeLine(hash, edgeInfo.settings);
+					Line2D line = this.GetEdgeLine(hash) ?? this.CreateEdgeLine(hash);
 					edgeInfo.settings.ConfigureLine(line);
 					line.Name = $"Edge #{hash} [{nameof(Line2D)}]";
 					line.Points = segment.vertexes;
@@ -301,6 +342,9 @@ public partial class Platform2D : Polygon2D
 			.ForEach(Engine.IsEditorHint() ? line => line.QueueFree() : line => line.Visible = false);
 	}
 
+	/// <summary>
+	/// Yields all edges of the polygon at the given index. (one Polygon2D node can contain multiple polygons)
+	/// </summary>
 	private IEnumerable<PolygonEdge> GetPolygonEdges(int polygonIndex)
 	{
 		Vector2[] vertexes = this.PolygonsVertexes[polygonIndex];
@@ -310,10 +354,18 @@ public partial class Platform2D : Polygon2D
 		}
 	}
 
+	/// <summary>
+	/// Gets the child Line2D node that corresponds to the given edge ID, or null if not found.
+	/// </summary>
 	private Line2D? GetEdgeLine(string id) => this.GetChildren()
 		.OfType<Line2D>()
 		.FirstOrDefault(line => this.GetLineId(line) == id);
-	private Line2D CreateEdgeLine(string id, EdgeSettings settings)
+
+	/// <summary>
+	/// Creates a new Line2D node with the given edge ID. The node is added as a child of this Platform2D and its
+	/// owner is set to match this Platform2D's owner.
+	/// </summary>
+	private Line2D CreateEdgeLine(string id)
 	{
 		Line2D line = new();
 		this.SetLineId(line, id);
@@ -321,6 +373,30 @@ public partial class Platform2D : Polygon2D
 		line.Owner = this.Owner;
 		return line;
 	}
+
+	/// <summary>
+	/// Assigns an ID to the given Line2D node as metadata.
+	/// </summary>
 	private void SetLineId(Line2D line, string id) => line.SetMeta(Platform2D.EdgeLineMetaKey, id);
+
+	/// <summary>
+	/// Retrieves the ID that was assigned to a Line2D with the <see cref="SetLineId"/> method, or an empty string if
+	/// it's not found.
+	/// </summary>
 	private string GetLineId(Line2D line) => line.GetMeta(Platform2D.EdgeLineMetaKey, "").AsString();
+
+	/// <summary>
+	/// Checks if any relevant property has changed since the last time this method was called. It reads
+	/// <see cref="CheckSum"/> to determine if anything changed, and updates <see cref="LastCheckSum"/> accordingly.
+	/// </summary>
+	private bool ConsumeChanges()
+	{
+		float currentCheckSum = this.CheckSum;
+		if (currentCheckSum == this.LastCheckSum)
+		{
+			return false;
+		}
+		this.LastCheckSum = currentCheckSum;
+		return true;
+	}
 }
