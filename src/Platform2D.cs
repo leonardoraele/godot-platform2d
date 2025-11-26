@@ -136,13 +136,17 @@ public partial class Platform2D : Polygon2D
 		base._Process(delta);
 		if (Engine.IsEditorHint())
 		{
-			if (this.ConsumeChanges())
+			// TODO FIXME Commenting this for now because the refresh interrupts the user editing the polygon. We should
+			// find a better way to automatically detect changes to the polygon and call Refresh without impacting the
+			// user experience. For now, the user has to manually press the "Manual Refresh" button.
+			// if (this.ConsumeChanges())
+			// {
+			// 	this.Refresh();
+			// }
+			// else
+			if (this.EdgesSettings.Count(setting => setting.ConsumeChanges()) > 0)
 			{
-				Callable.From(this.Refresh).CallDeferred();
-			}
-			else if (this.EdgesSettings.Count(setting => setting.ConsumeChanges()) > 0)
-			{
-				Callable.From(this.RefreshEdges).CallDeferred();
+				this.RefreshEdges();
 			}
 		}
 	}
