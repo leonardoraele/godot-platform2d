@@ -12,9 +12,9 @@ automatic edge sprite placement.
 
 ## Features
 
-- [X] **Curved Edges.** Draw your platforms using Path2D curves and let the plugin automatically generate the polygon mesh.
-- [ ] **Automatic Collision Generation.** Don't bother with collision shapes, the plugin automatically generates one for you based on the polygon's shape.
-- [ ] **Automatic Edge Sprite Placement.** Configure how surface and decoration sprites are placed on the polygons' fill and edges, and the plugin automatically places them and updates whenever the shape changes.
+- **Curved Edges.** Draw your platforms using Path2D curves and let the plugin automatically generate the polygon mesh.
+- **Automatic Collision Generation.** Collision shapes are automatically generated and kept updated based on the polygon's shape.
+- **Automatic Line2D Placement** Line2D nodes are automatically positioned over the polygon's surface on specified normal angles.
 
 ## Installation
 
