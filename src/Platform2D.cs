@@ -105,7 +105,6 @@ public partial class Platform2D : Polygon2D
 	public override void _EnterTree()
 	{
 		base._EnterTree();
-		this.PropertyListChanged += this.OnPropertyListChanged;
 		this.ChildEnteredTree += this.OnChildEnteredTree;
 		this.ChildExitingTree += this.OnChildExitingTree;
 	}
@@ -113,7 +112,6 @@ public partial class Platform2D : Polygon2D
 	public override void _ExitTree()
 	{
 		base._ExitTree();
-		this.PropertyListChanged -= this.OnPropertyListChanged;
 		this.ChildEnteredTree -= this.OnChildEnteredTree;
 		this.ChildExitingTree -= this.OnChildExitingTree;
 	}
@@ -145,9 +143,13 @@ public partial class Platform2D : Polygon2D
 	{
 		if (child is Path2D path && path.GetParent() == this)
 		{
-			GD.PrintS("New Path2D child detected.");
 			this.ChildPathsCache.Add(path);
-			path.PropertyListChanged += this.Refresh;
+			if (Engine.IsEditorHint())
+			{
+				Path2DObserver observer = new();
+				observer.PathChanged += this.OnPathChanged;
+				path.AddChild(observer);
+			}
 		}
 	}
 
@@ -155,16 +157,24 @@ public partial class Platform2D : Polygon2D
 	{
 		if (child is Path2D path)
 		{
-			GD.PrintS("Path2D child exiting tree.");
-			path.PropertyListChanged -= this.Refresh;
 			this.ChildPathsCache.Remove(path);
 		}
+	}
+
+	private void OnPathChanged(Path2D path)
+	{
+		this.Refresh();
 	}
 
 	public void Refresh()
 	{
 		this.RefreshPolygonsVertexes();
 		this.RefreshCollisionPolygons();
+		this.CollisionPolygons.ToList()
+			.ForEach(polygon => polygon.BuildMode = this.InvertEnabled
+				? CollisionPolygon2D.BuildModeEnum.Segments
+				: CollisionPolygon2D.BuildModeEnum.Solids
+			);
 	}
 
 	private void RefreshPolygonsVertexes()
@@ -176,7 +186,7 @@ public partial class Platform2D : Polygon2D
 		this.PolygonsVertexes = this.ChildPathsCache.Select(path =>
 			{
 				Vector2[] vertexes = path.Curve.GetBakedPoints()
-					.Select((vertex, index) => vertex + path.Position)
+					.Select((vertex, index) => path.Transform * vertex)
 					.ToArray();
 				return vertexes.Where((vertex, i) => !IsOmittable(vertexes, i)).ToArray();
 			})
@@ -188,15 +198,16 @@ public partial class Platform2D : Polygon2D
 		bool isfirst = index == 0;
 		bool islast = index == vertexes.Length - 1;
 		bool iscurve = !isfirst && !islast && IsCurve(vertexes[index], vertexes[index - 1], vertexes[index + 1]);
-		GD.PrintS(new { index, isfirst, islast, iscurve });
 		return !isfirst && !islast && !iscurve;
 	}
 
 	private static bool IsCurve(Vector2 vertex, Vector2 previous, Vector2 next)
 	{
 		var angle = Math.Abs((vertex - previous).AngleTo(next - vertex));
-		bool iscurve = angle > 0.01f;
-		GD.PrintS(new { vertex, previous, next, angle, iscurve });
+		// TODO Instead of comparing two adjacent vertexes against a fixed angle threshold, should accumulate the angle
+		// over a series of vertexes until a maximum distance or number of vertexes is reached. The way it is now, we
+		// miss curves that are made of many small angle changes.
+		bool iscurve = angle > 0.001f;
 		return iscurve;
 	}
 
@@ -232,10 +243,5 @@ public partial class Platform2D : Polygon2D
 		{
 			collisionPolygons[i].Polygon = this.PolygonsVertexes[i];
 		}
-	}
-
-	private void OnPropertyListChanged()
-	{
-		GD.PrintS($"{nameof(Platform2D)}.{nameof(OnPropertyListChanged)}()");
 	}
 }
