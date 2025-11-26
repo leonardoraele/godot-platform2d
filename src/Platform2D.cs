@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.IO.Hashing;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using Godot;
+using Godot.Collections;
 
 namespace Raele.Platform2D;
 
@@ -16,7 +19,7 @@ public partial class Platform2D : Polygon2D
 	// STATICS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	// public static readonly string MyConstant = "";
+	public static readonly string EdgeLinesGroup = $"{nameof(Platform2D)}.{nameof(EdgeLinesGroup)}";
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// EXPORTS
@@ -27,19 +30,12 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	[ExportToolButton("Manual Refresh")] Callable ToolButtonRefresh => Callable.From(this.Refresh);
 
-	[Export] public bool CreateAndUpdateCollider
-	{
-		get => field;
-		set
-		{
-			field = value;
-			if (Engine.IsEditorHint() && field && this.IsNodeReady())
-			{
-				this.Refresh();
-			}
-		}
-	} = false;
-	// [ExportToolButton("Create Static Collider")] Callable ToolButtonCreateStaticCollider => Callable.From(this.CreateStaticCollider);
+	[ExportGroup("Collider")]
+	[Export(PropertyHint.GroupEnable)] public bool AutoUpdateColliderEnabled = false;
+	[ExportToolButton("Create StaticBody2D")] Callable ToolButtonCreateCollider => Callable.From(this.OnCreateColliderPressed);
+
+	[ExportGroup("Edges")]
+	[Export] public Godot.Collections.Array<EdgeSettings> EdgesSettings = [];
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// FIELDS
@@ -92,11 +88,7 @@ public partial class Platform2D : Polygon2D
 		}
 	}
 	public int PolygonCount => this.Polygons.Count > 0 ? this.Polygons.Count : this.AllVertexes.Length > 0 ? 1 : 0;
-	public CollisionObject2D? Collider
-	{
-		get => this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
-		set => this.AddChild(value);
-	}
+	public CollisionObject2D? Collider => this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
 	public IEnumerable<CollisionPolygon2D> CollisionPolygons => this.Collider?.GetChildren().OfType<CollisionPolygon2D>() ?? [];
 
 	// -----------------------------------------------------------------------------------------------------------------
@@ -130,18 +122,34 @@ public partial class Platform2D : Polygon2D
 	public override void _Ready()
 	{
 		base._Ready();
-		this.Refresh();
+		if (Engine.IsEditorHint())
+		{
+			this.Refresh();
+		}
 	}
 
-	// public override void _Process(double delta)
-	// {
-	// 	base._Process(delta);
-	// }
+	public override void _Process(double delta)
+	{
+		base._Process(delta);
+		if (Engine.IsEditorHint() && this.EdgesSettings.Count(setting => setting.CheckForChanges()) > 0) {
+			this.RefreshEdges();
+		}
+	}
 
 	// public override void _PhysicsProcess(double delta)
 	// {
 	// 	base._PhysicsProcess(delta);
 	// }
+
+	public override void _ValidateProperty(Dictionary property)
+	{
+		if (property["name"].AsString() == nameof(this.ToolButtonCreateCollider))
+		{
+			property["usage"] = this.Collider == null
+				? Variant.From(PropertyUsageFlags.Default)
+				: Variant.From(PropertyUsageFlags.NoEditor);
+		}
+	}
 
 	// public override string[] _GetConfigurationWarnings()
 	// 	=> base._PhysicsProcess(delta);
@@ -172,14 +180,12 @@ public partial class Platform2D : Polygon2D
 		}
 	}
 
-	private void OnPathChanged(Path2D path)
-	{
-		this.Refresh();
-	}
+	private void OnPathChanged(Path2D path) => this.Refresh();
 
 	public void Refresh()
 	{
 		this.RefreshPolygonsVertexes();
+		this.RefreshEdges();
 		this.RefreshCollisionPolygons();
 		this.CollisionPolygons.ToList()
 			.ForEach(polygon => polygon.BuildMode = this.InvertEnabled
@@ -224,12 +230,10 @@ public partial class Platform2D : Polygon2D
 
 	private void RefreshCollisionPolygons()
 	{
-		if (!this.CreateAndUpdateCollider)
+		if (!this.AutoUpdateColliderEnabled || this.Collider == null)
 		{
 			return;
 		}
-
-		this.Collider ??= this.CreateStaticCollider();
 
 		// Add missing collision polygons
 		for (int i = 0; i < this.PolygonCount - this.CollisionPolygons.Count(); i++)
@@ -250,7 +254,7 @@ public partial class Platform2D : Polygon2D
 		}
 	}
 
-	private CollisionObject2D CreateStaticCollider()
+	private void OnCreateColliderPressed()
 	{
 		CollisionObject2D collider = this.Collider ?? new StaticBody2D() { Name = nameof(StaticBody2D) };
 		if (collider.GetParent() != this)
@@ -258,6 +262,63 @@ public partial class Platform2D : Polygon2D
 			this.AddChild(collider);
 			collider.Owner = this.Owner;
 		}
-		return collider;
+		this.AddChild(collider);
 	}
+
+	private void RefreshEdges()
+	{
+		HashSet<Line2D> lineSet = new();
+		XxHash3 hasher = new();
+
+		string Hash(params int[] values) {
+			hasher.Append(values.SelectMany(BitConverter.GetBytes).ToArray());
+			return $"{BitConverter.ToUInt16(hasher.GetHashAndReset()):X4}";
+		}
+
+		foreach ((int index, Vector2[] vertexes) polygon in this.PolygonsVertexes.ToList().Index())
+		{
+			PolygonEdge[] edges = this.GetPolygonEdges(polygon.index).ToArray();
+			foreach ((int index, EdgeSettings settings) edgeInfo in this.EdgesSettings.Where(settings => !settings.Disabled).Index()) {
+				foreach ((int index, Vector2[] vertexes) segment in edgeInfo.settings.FindSegments(edges).ToList().Index())
+				{
+					string hash = Hash(polygon.index, edgeInfo.index, segment.index);
+					Line2D line = this.GetOrCreateEdgeLine(hash);
+					line.Points = segment.vertexes;
+					line.Closed = segment.vertexes.Length == edges.Length;
+					lineSet.Add(line);
+				}
+			}
+		}
+
+		// Clean up unused edge lines
+		this.GetChildren()
+			.OfType<Line2D>()
+			.Where(line => line.IsInGroup(Platform2D.EdgeLinesGroup) && !lineSet.Contains(line))
+			.ToList()
+			.ForEach(Engine.IsEditorHint() ? line => line.QueueFree() : line => line.Visible = false);
+	}
+
+	private IEnumerable<PolygonEdge> GetPolygonEdges(int polygonIndex)
+	{
+		Vector2[] vertexes = this.PolygonsVertexes[polygonIndex];
+		foreach ((int i, Vector2 vertex) in vertexes.Index())
+		{
+			yield return new PolygonEdge(vertex, vertexes[(i + 1) % vertexes.Length]);
+		}
+	}
+
+	private Line2D GetOrCreateEdgeLine(string lineId) => this.GetEdgeLine(lineId) ?? this.CreateEdgeLine(lineId);
+	private Line2D? GetEdgeLine(string id) => this.GetNodeOrNull<Line2D>(this.GetLineName(id));
+	private Line2D CreateEdgeLine(string id)
+	{
+		Line2D line = new Line2D
+		{
+			Name = this.GetLineName(id),
+		};
+		this.AddChild(line);
+		line.Owner = this.Owner;
+		line.AddToGroup(Platform2D.EdgeLinesGroup);
+		return line;
+	}
+	private string GetLineName(string id) => $"{nameof(Line2D)} (Edge #{id})";
 }

@@ -76,11 +76,15 @@ public partial class Path2DObserver : Node
 		// timer.Timeout += this.CheckForChanges;
 		// this.AddChild(timer);
 
+		// TODO FIXME Using System.Timers.Timer in tool scripts causes Godot to fail to unload assemblies when building
+		// the project while a scene with this node is open. Consider replacing it with the Godot.Timer node or another
+		// approach.
 		System.Timers.Timer timer = new()
 		{
 			Interval = CheckForChangesInterval.TotalMilliseconds,
 			AutoReset = true,
 		};
+		// Must queue the method to be invoked on the godot thread since the CheckForChanges method accesses Godot API.
 		Callable callable = Callable.From(this.CheckForChanges);
 		timer.Elapsed += (_, _) => callable.CallDeferred();
 		timer.Start();
@@ -104,6 +108,9 @@ public partial class Path2DObserver : Node
 	// METHODS
 	// -----------------------------------------------------------------------------------------------------------------
 
+	// TODO If CheckForChanges detects a change, we should keep checking for changes at every frame for a time to
+	// improve user experience. (so that the updates are not so laggy) If we do so, we can probably increase the timer
+	// interval a bit to reduce performance impact.
 	private void CheckForChanges()
 	{
 		float checksum = GetDataPoints().Sum();
