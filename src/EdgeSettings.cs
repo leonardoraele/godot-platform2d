@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO.Hashing;
 using System.Linq;
 using Godot;
 
@@ -17,28 +19,52 @@ public partial class EdgeSettings : Resource
 	// EXPORTS
 	// -----------------------------------------------------------------------------------------------------------------
 
+	// [Export] public PackedScene? Template;
 	[Export(PropertyHint.Range, "-180,180,5,radians_as_degrees")] public float BeginAngle = 0f;
 	[Export(PropertyHint.Range, "-180,180,5,radians_as_degrees")] public float EndAngle = 0f;
 	[Export] public bool Disabled = false;
 	// [Export] public bool HasBeginCapSprite = false;
 	// [Export] public bool HasEndCapSprite = false;
 
+	[ExportGroup("Texture")]
+	[Export] public Texture2D? Texture;
+	[Export(PropertyHint.Range, "0,2,0.01,or_greater,or_less")] public float WidthMultiplier = 1f;
+	[Export] public Line2D.LineTextureMode TextureMode = Line2D.LineTextureMode.Tile;
+	[Export] public Line2D.LineJointMode JointMode = Line2D.LineJointMode.Round;
+	[Export] public Color Tint = Colors.White;
+	[Export] public Gradient? Gradient;
+	[Export] public Material? Material;
+
+	[ExportGroup("Cap Sprites")]
+	[Export(PropertyHint.GroupEnable)] public bool HasCapSprites = false;
+	[Export] public Texture2D? BeginCapSprite;
+	[Export] public Texture2D? EndCapSprite;
+
 	// -----------------------------------------------------------------------------------------------------------------
 	// FIELDS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	private float LastCheckSum = float.NaN;
+	private float LastCheckSum = -1;
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// PROPERTIES
 	// -----------------------------------------------------------------------------------------------------------------
 
-	private float CheckSum => this.BeginAngle
+	private bool HasChanges => this.CheckSum != this.LastCheckSum;
+	private float CheckSum =>
+		this.BeginAngle
 		+ this.EndAngle
-		// + (this.HasBeginCapSprite ? 1f : 0f)
-		// + (this.HasEndCapSprite ? 1f : 0f)
-		;
-	private bool HasChanges => !Mathf.IsEqualApprox(this.CheckSum, this.LastCheckSum);
+		+ Convert.ToSingle(this.Disabled)
+		+ (this.Texture?.GetHashCode() ?? 0)
+		+ this.WidthMultiplier
+		+ (float) this.TextureMode
+		+ (float) this.JointMode
+		+ this.Tint.ToRgba32()
+		+ (this.Gradient?.GetHashCode() ?? 0)
+		+ (this.Material?.GetHashCode() ?? 0)
+		+ Convert.ToSingle(this.HasCapSprites)
+		+ (this.BeginCapSprite?.GetHashCode() ?? 0)
+		+ (this.EndCapSprite?.GetHashCode() ?? 0);
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// SIGNALS
@@ -105,6 +131,18 @@ public partial class EdgeSettings : Resource
 	public bool Test(float rotation) => this.BeginAngle <= this.EndAngle
 		? this.BeginAngle <= rotation && rotation <= this.EndAngle
 		: rotation <= this.EndAngle || this.BeginAngle <= rotation;
+
+	public void ConfigureLine(Line2D line)
+	{
+		line.Texture = this.Texture;
+		line.TextureRepeat = CanvasItem.TextureRepeatEnum.Enabled;
+		line.Width = (this.Texture?.GetHeight() ?? 10f) * this.WidthMultiplier;
+		line.TextureMode = this.TextureMode;
+		line.JointMode = this.JointMode;
+		line.DefaultColor = this.Tint;
+		line.Gradient = this.Gradient;
+		line.Material = this.Material;
+	}
 
 	public IEnumerable<Vector2[]> FindSegments(PolygonEdge[] edges)
 	{

@@ -12,7 +12,7 @@ public partial class EdgeAnglePreviewer : Control
 
 	private static readonly int CIRCLE_DOTS_COUNT = 64;
 	private static readonly float ARC_WIDTH = 32f;
-	private static readonly float MARGIN = 16f;
+	private static readonly float MARGIN = 32f;
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// EXPORTS

@@ -18,7 +18,7 @@ public partial class Platform2D : Polygon2D
 	// STATICS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	public static readonly string EdgeLinesGroup = $"{nameof(Platform2D)}.{nameof(EdgeLinesGroup)}";
+	public static readonly string EdgeLineMetaKey = $"{nameof(Platform2D)}__{nameof(EdgeLineMetaKey)}";
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// EXPORTS
@@ -281,7 +281,9 @@ public partial class Platform2D : Polygon2D
 				foreach ((int index, Vector2[] vertexes) segment in edgeInfo.settings.FindSegments(edges).ToList().Index())
 				{
 					string hash = Hash(polygon.index, edgeInfo.index, segment.index);
-					Line2D line = this.GetOrCreateEdgeLine(hash);
+					Line2D line = this.GetEdgeLine(hash) ?? this.CreateEdgeLine(hash, edgeInfo.settings);
+					edgeInfo.settings.ConfigureLine(line);
+					line.Name = $"Edge #{hash} [{nameof(Line2D)}]";
 					line.Points = segment.vertexes;
 					line.Closed = segment.vertexes.Length == edges.Length;
 					lineSet.Add(line);
@@ -292,7 +294,9 @@ public partial class Platform2D : Polygon2D
 		// Clean up unused edge lines
 		this.GetChildren()
 			.OfType<Line2D>()
-			.Where(line => line.IsInGroup(Platform2D.EdgeLinesGroup) && !lineSet.Contains(line))
+			.Where(line => line.HasMeta(Platform2D.EdgeLineMetaKey))
+			.ToHashSet()
+			.Except(lineSet)
 			.ToList()
 			.ForEach(Engine.IsEditorHint() ? line => line.QueueFree() : line => line.Visible = false);
 	}
@@ -306,18 +310,17 @@ public partial class Platform2D : Polygon2D
 		}
 	}
 
-	private Line2D GetOrCreateEdgeLine(string lineId) => this.GetEdgeLine(lineId) ?? this.CreateEdgeLine(lineId);
-	private Line2D? GetEdgeLine(string id) => this.GetNodeOrNull<Line2D>(this.GetLineName(id));
-	private Line2D CreateEdgeLine(string id)
+	private Line2D? GetEdgeLine(string id) => this.GetChildren()
+		.OfType<Line2D>()
+		.FirstOrDefault(line => this.GetLineId(line) == id);
+	private Line2D CreateEdgeLine(string id, EdgeSettings settings)
 	{
-		Line2D line = new Line2D
-		{
-			Name = this.GetLineName(id),
-		};
+		Line2D line = new();
+		this.SetLineId(line, id);
 		this.AddChild(line);
 		line.Owner = this.Owner;
-		line.AddToGroup(Platform2D.EdgeLinesGroup);
 		return line;
 	}
-	private string GetLineName(string id) => $"{nameof(Line2D)} (Edge #{id})";
+	private void SetLineId(Line2D line, string id) => line.SetMeta(Platform2D.EdgeLineMetaKey, id);
+	private string GetLineId(Line2D line) => line.GetMeta(Platform2D.EdgeLineMetaKey, "").AsString();
 }
