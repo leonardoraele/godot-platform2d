@@ -5,8 +5,6 @@ using Godot;
 
 namespace Raele.Platform2D;
 
-// TODO Add boolean option to automatically create StaticBody2D and CollisionPolygon2D children nodes based on the
-// polygon shape.
 // TODO Add option to configure textures for the edges.
 // TODO Add option to randomly place selected texture sprites on the polygon (on either edge or fill) — for decorations
 // or variation.
@@ -27,12 +25,21 @@ public partial class Platform2D : Polygon2D
 	/// <summary>
 	/// Tool button to refresh the polygon vertexes from child Path2D nodes.
 	/// </summary>
-	[ExportToolButton("Refresh")] Callable ToolButtonRefresh => Callable.From(this.Refresh);
+	[ExportToolButton("Manual Refresh")] Callable ToolButtonRefresh => Callable.From(this.Refresh);
 
-	[Export] public bool Test;
-
-	[ExportGroup("Collider")]
-	[ExportToolButton("Create Static Collider")] Callable ToolButtonCreateStaticCollider => Callable.From(this.CreateStaticCollider);
+	[Export] public bool CreateAndUpdateCollider
+	{
+		get => field;
+		set
+		{
+			field = value;
+			if (Engine.IsEditorHint() && field && this.IsNodeReady())
+			{
+				this.Refresh();
+			}
+		}
+	} = false;
+	// [ExportToolButton("Create Static Collider")] Callable ToolButtonCreateStaticCollider => Callable.From(this.CreateStaticCollider);
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// FIELDS
@@ -85,7 +92,11 @@ public partial class Platform2D : Polygon2D
 		}
 	}
 	public int PolygonCount => this.Polygons.Count > 0 ? this.Polygons.Count : this.AllVertexes.Length > 0 ? 1 : 0;
-	public CollisionObject2D? Collider => this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
+	public CollisionObject2D? Collider
+	{
+		get => this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
+		set => this.AddChild(value);
+	}
 	public IEnumerable<CollisionPolygon2D> CollisionPolygons => this.Collider?.GetChildren().OfType<CollisionPolygon2D>() ?? [];
 
 	// -----------------------------------------------------------------------------------------------------------------
@@ -211,23 +222,15 @@ public partial class Platform2D : Polygon2D
 		return iscurve;
 	}
 
-	private void CreateStaticCollider()
-	{
-		CollisionObject2D collider = this.Collider ?? new StaticBody2D() { Name = nameof(StaticBody2D) };
-		if (collider.GetParent() != this)
-		{
-			this.AddChild(collider);
-			collider.Owner = this.Owner;
-		}
-		this.RefreshCollisionPolygons();
-	}
-
 	private void RefreshCollisionPolygons()
 	{
-		if (this.Collider == null)
+		if (!this.CreateAndUpdateCollider)
 		{
 			return;
 		}
+
+		this.Collider ??= this.CreateStaticCollider();
+
 		// Add missing collision polygons
 		for (int i = 0; i < this.PolygonCount - this.CollisionPolygons.Count(); i++)
 		{
@@ -235,13 +238,26 @@ public partial class Platform2D : Polygon2D
 			this.Collider.AddChild(collisionPolygon);
 			collisionPolygon.Owner = this.Owner;
 		}
+
 		// Remove extra collision polygons
 		this.CollisionPolygons.Skip(this.PolygonCount).ToList().ForEach(polygon => polygon.QueueFree());
+
 		// Update collision polygons
 		CollisionPolygon2D[] collisionPolygons = this.CollisionPolygons.ToArray();
 		for (int i = 0; i < collisionPolygons.Length; i++)
 		{
 			collisionPolygons[i].Polygon = this.PolygonsVertexes[i];
 		}
+	}
+
+	private CollisionObject2D CreateStaticCollider()
+	{
+		CollisionObject2D collider = this.Collider ?? new StaticBody2D() { Name = nameof(StaticBody2D) };
+		if (collider.GetParent() != this)
+		{
+			this.AddChild(collider);
+			collider.Owner = this.Owner;
+		}
+		return collider;
 	}
 }
