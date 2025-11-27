@@ -144,12 +144,15 @@ public partial class EdgeSettings : Resource
 
 	public IEnumerable<Vector2[]> FindSegments(PolygonEdge[] edges)
 	{
-		// Find a starting index where the edge does not pass the test. This ensures we start outside a segment, and
-		// prevents yielding an incomplete segment at the end of the loop.
-		int startIndex = edges.Index().FirstOrDefault(tuple => !this.Test(tuple.Item)).Index;
+		// If the first and last edges pass, ignore the first segment until we find an edge that does not pass. The
+		// first segment will be handled as part of the last segment at the end of the loop.
+		int startIndex = this.Test(edges[0]) && this.Test(edges[^1])
+			? edges.Index().FirstOrDefault(tuple => !this.Test(tuple.Item), (-1, null!)).Index
+			: 0;
 
-		// Check if all edges passed the test, then yield the entire polygon surface perimeter as a single segment.
-		if (startIndex == 0 && this.Test(edges[0]))
+		// If there is no start index (i.e. all edges passed the test, meaning the edge loops around the entire
+		// polygon), then yield the entire polygon surface perimeter as a single segment.
+		if (startIndex == -1)
 		{
 			yield return edges.Select(edge => edge.Left).ToArray();
 			yield break;
