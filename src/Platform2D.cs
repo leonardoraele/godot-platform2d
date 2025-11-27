@@ -92,7 +92,7 @@ public partial class Platform2D : Polygon2D
 		this.Polygon.Select(vertex => vertex.X + vertex.Y).Sum()
 		+ this.Polygons.SelectMany(polygon => polygon.AsInt32Array()).Sum();
 	private float LastCheckSum = float.NaN;
-	private Godot.Collections.Array<EdgeSettings> EdgesSettings => this.Profile?.EdgesSettings ?? [];
+	private IEnumerable<EdgeSettings> EdgesSettings => this.Profile?.EdgesSettings.Where(setting => setting != null) ?? [];
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// SIGNALS
