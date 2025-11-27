@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -26,7 +27,8 @@ public partial class EdgeSettings : Resource
 
 	[ExportGroup("Texture")]
 	[Export] public Texture2D? Texture;
-	[Export(PropertyHint.Range, "0,2,0.01,or_greater,or_less")] public float WidthMultiplier = 1f;
+	[Export(PropertyHint.Range, "0,1,or_greater,or_less")] public float Offset = 0.5f;
+	[Export(PropertyHint.Range, "0,2,0.01,or_greater,or_less")] public float Width = 1f;
 	[Export] public Line2D.LineTextureMode TextureMode = Line2D.LineTextureMode.Tile;
 	[Export] public Line2D.LineJointMode JointMode = Line2D.LineJointMode.Round;
 	[Export] public Color Tint = Colors.White;
@@ -54,7 +56,8 @@ public partial class EdgeSettings : Resource
 		this.EndAngle,
 		this.Disabled,
 		this.Texture!,
-		this.WidthMultiplier,
+		this.Offset,
+		this.Width,
 		Variant.From(this.TextureMode),
 		Variant.From(this.JointMode),
 		this.Gradient!,
@@ -137,14 +140,43 @@ public partial class EdgeSettings : Resource
 
 	public void ConfigureLine(Line2D line)
 	{
+		line.Points = this.ExpandShape(line.Points);
 		line.Texture = this.Texture;
 		line.TextureRepeat = CanvasItem.TextureRepeatEnum.Enabled;
-		line.Width = (this.Texture?.GetHeight() ?? 10f) * this.WidthMultiplier;
+		line.Width = (this.Texture?.GetHeight() ?? 10f) * this.Width;
 		line.TextureMode = this.TextureMode;
 		line.JointMode = this.JointMode;
 		line.DefaultColor = this.Tint;
 		line.Gradient = this.Gradient;
 		line.Material = this.Material;
+	}
+
+	private Vector2[] ExpandShape(Vector2[] vertexes)
+	{
+		if (this.Texture == null || vertexes.Length < 2)
+		{
+			return vertexes;
+		}
+		float distance = this.Texture.GetHeight() * (this.Offset - 0.5f) * this.Width;
+		if (Mathf.IsEqualApprox(distance, 0f))
+		{
+			return vertexes;
+		}
+		IEnumerable<Vector2> _ExpandShape()
+		{
+			yield return vertexes[0] + vertexes[0].DirectionTo(vertexes[1]).Orthogonal() * distance;
+			for (int i = 1; i < vertexes.Length - 1; i++)
+			{
+				Vector2 curr = vertexes[i];
+				Vector2 left = curr.DirectionTo(vertexes[i - 1]);
+				Vector2 right = curr.DirectionTo(vertexes[i + 1]);
+				int direction = Mathf.Sign(left.Cross(right));
+				Vector2 normal = direction == 0 ? right.Orthogonal() : (left + right).Normalized() * direction;
+				yield return curr + normal * distance;
+			}
+			yield return vertexes[^1] + vertexes[^2].DirectionTo(vertexes[^1]).Orthogonal() * distance;
+		}
+		return _ExpandShape().ToArray();
 	}
 
 	public FindSegmentsResult FindSegments(PolygonEdge[] edges)
@@ -184,7 +216,7 @@ public partial class EdgeSettings : Resource
 				}
 			}
 		}
-		return new()
+		return  new()
 		{
 			Segments = _FindSegments().ToArray(),
 			Closed = false,

@@ -86,7 +86,20 @@ public partial class Platform2D : Polygon2D
 		}
 	}
 	public int PolygonCount => this.Polygons.Count > 0 ? this.Polygons.Count : this.AllVertexes.Length > 0 ? 1 : 0;
-	public CollisionObject2D? Collider => this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
+	public CollisionObject2D? Collider
+	{
+		get => this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
+		set
+		{
+			if (value == null)
+			{
+				this.Collider?.QueueFree();
+				return;
+			}
+			this.AddChild(value);
+			value.Owner = this.Owner;
+		}
+	}
 	public IEnumerable<CollisionPolygon2D> CollisionPolygons => this.Collider?.GetChildren().OfType<CollisionPolygon2D>() ?? [];
 	private float CheckSum => Utils.HashF(this.AllVertexes);
 	private float LastCheckSum = float.NaN;
@@ -173,13 +186,8 @@ public partial class Platform2D : Polygon2D
 
 	private void OnCreateColliderPressed()
 	{
-		CollisionObject2D collider = this.Collider ?? new StaticBody2D() { Name = nameof(StaticBody2D) };
-		if (collider.GetParent() != this)
-		{
-			this.AddChild(collider);
-			collider.Owner = this.Owner;
-		}
-		this.AddChild(collider);
+		this.Collider ??= new StaticBody2D() { Name = nameof(StaticBody2D) };
+		this.RefreshCollisionPolygons();
 	}
 
 	private void OnChildEnteredTree(Node child)
@@ -326,9 +334,11 @@ public partial class Platform2D : Polygon2D
 				{
 					string hash = Hash(polygon.index, edgeInfo.index, segment.index);
 					Line2D line = this.GetEdgeLine(hash) ?? this.CreateEdgeLine(hash);
+					// Must assign Points before calling EdgeSettings.ConfigureLine() because that method reads and
+					// updates the line's points.
+					line.Points = segment.vertexes;
 					edgeInfo.settings.ConfigureLine(line);
 					line.Name = $"Edge #{hash} [{nameof(Line2D)}]";
-					line.Points = segment.vertexes;
 					line.Closed = result.Closed;
 					lineSet.Add(line);
 				}
