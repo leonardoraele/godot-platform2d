@@ -1,6 +1,4 @@
-using System;
 using System.Collections.Generic;
-using System.IO.Hashing;
 using System.Linq;
 using Godot;
 
@@ -51,26 +49,26 @@ public partial class EdgeSettings : Resource
 	// -----------------------------------------------------------------------------------------------------------------
 
 	private bool HasChanges => !Mathf.IsEqualApprox(this.CheckSum, this.LastCheckSum);
-	private float CheckSum =>
-		this.BeginAngle
-		+ this.EndAngle
-		+ Convert.ToSingle(this.Disabled)
-		+ (this.Texture?.GetHashCode() ?? 0)
-		+ this.WidthMultiplier
-		+ (float) this.TextureMode
-		+ (float) this.JointMode
-		+ this.Tint.ToRgba32()
-		+ (this.Gradient?.GetHashCode() ?? 0)
-		+ (this.Material?.GetHashCode() ?? 0)
-		+ Convert.ToSingle(this.HasCapSprites)
-		+ (this.BeginCapSprite?.GetHashCode() ?? 0)
-		+ (this.EndCapSprite?.GetHashCode() ?? 0);
+	private float CheckSum => Utils.HashF(
+		this.BeginAngle,
+		this.EndAngle,
+		this.Disabled,
+		this.Texture!,
+		this.WidthMultiplier,
+		Variant.From(this.TextureMode),
+		Variant.From(this.JointMode),
+		this.Gradient!,
+		this.Material!,
+		this.HasCapSprites,
+		this.BeginCapSprite!,
+		this.EndCapSprite!
+	);
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// SIGNALS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	// [Signal] public delegate void EventHandler()
+	// [Signal] public delegate void EventHandler();
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// INTERNAL TYPES
@@ -118,7 +116,7 @@ public partial class EdgeSettings : Resource
 		bool result = this.HasChanges;
 		if (result)
 		{
-			this.EmitSignal(Resource.SignalName.Changed);
+			this.EmitChanged();
 			this.Reset();
 		}
 		return result;

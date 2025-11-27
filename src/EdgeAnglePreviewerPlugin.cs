@@ -1,7 +1,9 @@
+#if TOOLS
 using Godot;
 
 namespace Raele.Platform2D;
 
+[Tool]
 public partial class EdgeAnglePreviewerPlugin : EditorInspectorPlugin
 {
 	public override bool _CanHandle(GodotObject subject) => subject is EdgeSettings;
@@ -28,3 +30,4 @@ public partial class EdgeAnglePreviewerPlugin : EditorInspectorPlugin
 		return false;
 	}
 }
+#endif

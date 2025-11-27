@@ -1,9 +1,11 @@
+#if TOOLS
 using System;
 using System.Linq;
 using Godot;
 
 namespace Raele.Platform2D;
 
+[Tool]
 public partial class EdgeAnglePreviewer : Control
 {
 	// -----------------------------------------------------------------------------------------------------------------
@@ -148,5 +150,6 @@ public partial class EdgeAnglePreviewer : Control
 	// METHODS
 	// -----------------------------------------------------------------------------------------------------------------
 
-
+	public void Refresh() => this.QueueRedraw();
 }
+#endif
