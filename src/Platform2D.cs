@@ -35,12 +35,12 @@ public partial class Platform2D : Polygon2D
 	[Export(PropertyHint.GroupEnable)] public bool AutoUpdateColliderEnabled = false;
 	[ExportToolButton("Create StaticBody2D")] Callable ToolButtonCreateCollider => Callable.From(this.OnCreateColliderPressed);
 
-	[ExportGroup("Additional Options")]
-	/// <summary>
-	/// Every time you change the polygon shape, new edges are added or removed according to the profile (if any). This
-	/// option determines whether the Line2D edges should be hidden or deleted when they are no longer needed.
-	/// </summary>
-	[Export] public UnusedEdgesStrategyEnum UnusedEdgeLinesStrategy = UnusedEdgesStrategyEnum.Hide;
+	// [ExportGroup("Additional Options")]
+	// /// <summary>
+	// /// Every time you change the polygon shape, new edges are added or removed according to the profile (if any). This
+	// /// option determines whether the Line2D edges should be hidden or deleted when they are no longer needed.
+	// /// </summary>
+	// [Export] public UnusedEdgesStrategyEnum UnusedEdgeLinesStrategy = UnusedEdgesStrategyEnum.Hide;
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// FIELDS
@@ -111,7 +111,7 @@ public partial class Platform2D : Polygon2D
 	// TODO FIXME Commenting AllVertexes for now because the refresh interrupts the user editing the polygon. We should
 	// find a better way to automatically detect changes to the polygon and call Refresh without impacting the
 	// user experience. For now, the user has to manually press the "Manual Refresh" button.
-	private float CheckSum => Utils.HashF(/*this.AllVertexes, */ Variant.From(this.Profile), Variant.From(this.UnusedEdgeLinesStrategy));
+	private float CheckSum => Utils.HashF(/*this.AllVertexes, */ Variant.From(this.Profile)/*, Variant.From(this.UnusedEdgeLinesStrategy)*/);
 	private float LastCheckSum = float.NaN;
 	private IEnumerable<EdgeSettings> EdgesSettings => this.Profile?.EdgesSettings.Where(setting => setting != null) ?? [];
 
@@ -365,7 +365,7 @@ public partial class Platform2D : Polygon2D
 			.Except(lineSet)
 			.ToList()
 			.ForEach(
-				Engine.IsEditorHint() && this.UnusedEdgeLinesStrategy == UnusedEdgesStrategyEnum.Delete
+				Engine.IsEditorHint() /*&& this.UnusedEdgeLinesStrategy == UnusedEdgesStrategyEnum.Delete*/
 					? line => line.QueueFree()
 					: line => line.Visible = false
 			);
