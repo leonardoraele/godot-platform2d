@@ -63,6 +63,7 @@ public partial class EdgeSettings : Resource
 		this.BeginCapSprite!,
 		this.EndCapSprite!
 	);
+	public bool Closed => Mathf.IsEqualApprox(this.BeginAngle + Mathf.Tau, this.EndAngle);
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// SIGNALS
@@ -74,9 +75,10 @@ public partial class EdgeSettings : Resource
 	// INTERNAL TYPES
 	// -----------------------------------------------------------------------------------------------------------------
 
-	// private enum Type {
-	// 	Value1,
-	// }
+	public record FindSegmentsResult {
+		public required Vector2[][] Segments { get; init; }
+		public required bool Closed { get; init; }
+	}
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// GODOT EVENTS
@@ -128,6 +130,9 @@ public partial class EdgeSettings : Resource
 	public bool Test(Vector2 normal) => this.Test(normal.Angle());
 	public bool Test(float rotation) => this.BeginAngle <= this.EndAngle
 		? this.BeginAngle <= rotation && rotation <= this.EndAngle
+			// This is necessary because if the surface normal is exactly Vector2.Left, the rotation angle will be
+			// negative Pi, thus outside of the [BeginAngle, EndAngle] interval.
+			|| Mathf.IsEqualApprox(rotation + Mathf.Tau, this.EndAngle)
 		: rotation <= this.EndAngle || this.BeginAngle <= rotation;
 
 	public void ConfigureLine(Line2D line)
@@ -142,7 +147,7 @@ public partial class EdgeSettings : Resource
 		line.Material = this.Material;
 	}
 
-	public IEnumerable<Vector2[]> FindSegments(PolygonEdge[] edges)
+	public FindSegmentsResult FindSegments(PolygonEdge[] edges)
 	{
 		// If the first and last edges pass, ignore the first segment until we find an edge that does not pass. The
 		// first segment will be handled as part of the last segment at the end of the loop.
@@ -154,24 +159,35 @@ public partial class EdgeSettings : Resource
 		// polygon), then yield the entire polygon surface perimeter as a single segment.
 		if (startIndex == -1)
 		{
-			yield return edges.Select(edge => edge.Left).ToArray();
-			yield break;
+			return new()
+			{
+				Segments = [edges.Select(edge => edge.Left).ToArray()],
+				Closed = true,
+			};
 		}
 
-		List<Vector2> buffer = new();
-		for (int i = startIndex; i < edges.Length || buffer.Count > 0; i++)
+		IEnumerable<Vector2[]> _FindSegments()
 		{
-			PolygonEdge GetEdge() => edges[i % edges.Length];
-			if (this.Test(GetEdge()))
+			List<Vector2> buffer = new();
+			for (int i = startIndex; i < edges.Length || buffer.Count > 0; i++)
 			{
-				buffer.Add(GetEdge().Left);
-			}
-			else if (buffer.Count > 0)
-			{
-				buffer.Add(GetEdge().Left);
-				yield return buffer.ToArray();
-				buffer.Clear();
+				PolygonEdge GetEdge() => edges[i % edges.Length];
+				if (this.Test(GetEdge()))
+				{
+					buffer.Add(GetEdge().Left);
+				}
+				else if (buffer.Count > 0)
+				{
+					buffer.Add(GetEdge().Left);
+					yield return buffer.ToArray();
+					buffer.Clear();
+				}
 			}
 		}
+		return new()
+		{
+			Segments = _FindSegments().ToArray(),
+			Closed = false,
+		};
 	}
 }

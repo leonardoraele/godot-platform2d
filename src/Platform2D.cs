@@ -323,14 +323,15 @@ public partial class Platform2D : Polygon2D
 		{
 			PolygonEdge[] edges = this.GetPolygonEdges(polygon.index).ToArray();
 			foreach ((int index, EdgeSettings settings) edgeInfo in this.EdgesSettings.Where(settings => !settings.Disabled).Index()) {
-				foreach ((int index, Vector2[] vertexes) segment in edgeInfo.settings.FindSegments(edges).ToList().Index())
+				EdgeSettings.FindSegmentsResult result = edgeInfo.settings.FindSegments(edges);
+				foreach ((int index, Vector2[] vertexes) segment in result.Segments.Index())
 				{
 					string hash = Hash(polygon.index, edgeInfo.index, segment.index);
 					Line2D line = this.GetEdgeLine(hash) ?? this.CreateEdgeLine(hash);
 					edgeInfo.settings.ConfigureLine(line);
 					line.Name = $"Edge #{hash} [{nameof(Line2D)}]";
 					line.Points = segment.vertexes;
-					line.Closed = segment.vertexes.Length == edges.Length;
+					line.Closed = result.Closed;
 					lineSet.Add(line);
 				}
 			}
@@ -374,7 +375,7 @@ public partial class Platform2D : Polygon2D
 		Line2D line = new();
 		this.SetLineId(line, id);
 		this.AddChild(line);
-		// line.Owner = this.Owner;
+		line.Owner = this.Owner;
 		return line;
 	}
 
