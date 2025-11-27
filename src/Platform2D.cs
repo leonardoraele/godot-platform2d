@@ -88,9 +88,7 @@ public partial class Platform2D : Polygon2D
 	public int PolygonCount => this.Polygons.Count > 0 ? this.Polygons.Count : this.AllVertexes.Length > 0 ? 1 : 0;
 	public CollisionObject2D? Collider => this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
 	public IEnumerable<CollisionPolygon2D> CollisionPolygons => this.Collider?.GetChildren().OfType<CollisionPolygon2D>() ?? [];
-	private float CheckSum =>
-		this.Polygon.Select(vertex => vertex.X + vertex.Y).Sum()
-		+ this.Polygons.SelectMany(polygon => polygon.AsInt32Array()).Sum();
+	private float CheckSum => Utils.HashF(this.AllVertexes);
 	private float LastCheckSum = float.NaN;
 	private IEnumerable<EdgeSettings> EdgesSettings => this.Profile?.EdgesSettings.Where(setting => setting != null) ?? [];
 
