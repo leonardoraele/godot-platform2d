@@ -35,6 +35,13 @@ public partial class Platform2D : Polygon2D
 	[Export(PropertyHint.GroupEnable)] public bool AutoUpdateColliderEnabled = false;
 	[ExportToolButton("Create StaticBody2D")] Callable ToolButtonCreateCollider => Callable.From(this.OnCreateColliderPressed);
 
+	[ExportGroup("Additional Options")]
+	/// <summary>
+	/// Every time you change the polygon shape, new edges are added or removed according to the profile (if any). This
+	/// option determines whether the Line2D edges should be hidden or deleted when they are no longer needed.
+	/// </summary>
+	[Export] public UnusedEdgesStrategyEnum UnusedEdgeLinesStrategy = UnusedEdgesStrategyEnum.Hide;
+
 	// -----------------------------------------------------------------------------------------------------------------
 	// FIELDS
 	// -----------------------------------------------------------------------------------------------------------------
@@ -101,7 +108,10 @@ public partial class Platform2D : Polygon2D
 		}
 	}
 	public IEnumerable<CollisionPolygon2D> CollisionPolygons => this.Collider?.GetChildren().OfType<CollisionPolygon2D>() ?? [];
-	private float CheckSum => Utils.HashF(this.AllVertexes);
+	// TODO FIXME Commenting AllVertexes for now because the refresh interrupts the user editing the polygon. We should
+	// find a better way to automatically detect changes to the polygon and call Refresh without impacting the
+	// user experience. For now, the user has to manually press the "Manual Refresh" button.
+	private float CheckSum => Utils.HashF(/*this.AllVertexes, */ Variant.From(this.Profile), Variant.From(this.UnusedEdgeLinesStrategy));
 	private float LastCheckSum = float.NaN;
 	private IEnumerable<EdgeSettings> EdgesSettings => this.Profile?.EdgesSettings.Where(setting => setting != null) ?? [];
 
@@ -114,6 +124,12 @@ public partial class Platform2D : Polygon2D
 	// -----------------------------------------------------------------------------------------------------------------
 	// INTERNAL TYPES
 	// -----------------------------------------------------------------------------------------------------------------
+
+	public enum UnusedEdgesStrategyEnum
+	{
+		Hide,
+		Delete,
+	}
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// GODOT EVENTS
@@ -147,15 +163,11 @@ public partial class Platform2D : Polygon2D
 		base._Process(delta);
 		if (Engine.IsEditorHint())
 		{
-			// TODO FIXME Commenting this for now because the refresh interrupts the user editing the polygon. We should
-			// find a better way to automatically detect changes to the polygon and call Refresh without impacting the
-			// user experience. For now, the user has to manually press the "Manual Refresh" button.
-			// if (this.ConsumeChanges())
-			// {
-			// 	this.Refresh();
-			// }
-			// else
-			if (this.EdgesSettings.Count(setting => setting.ConsumeChanges()) > 0)
+			if (this.ConsumeChanges())
+			{
+				this.Refresh();
+			}
+			else if (this.EdgesSettings.Count(setting => setting.ConsumeChanges()) > 0)
 			{
 				this.RefreshEdges();
 			}
@@ -352,7 +364,11 @@ public partial class Platform2D : Polygon2D
 			.ToHashSet()
 			.Except(lineSet)
 			.ToList()
-			.ForEach(Engine.IsEditorHint() ? line => line.QueueFree() : line => line.Visible = false);
+			.ForEach(
+				Engine.IsEditorHint() && this.UnusedEdgeLinesStrategy == UnusedEdgesStrategyEnum.Delete
+					? line => line.QueueFree()
+					: line => line.Visible = false
+			);
 	}
 
 	/// <summary>

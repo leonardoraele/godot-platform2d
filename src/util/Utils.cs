@@ -13,7 +13,7 @@ public static class Utils
 		=> variant.VariantType switch
 		{
 			Variant.Type.Bool => variant.AsBool() ? 1f : 0f,
-			Variant.Type.Int => variant.AsInt32() / (float) int.MaxValue,
+			Variant.Type.Int => HashF(BitConverter.GetBytes(variant.AsSingle())),
 			Variant.Type.Float => HashF(BitConverter.GetBytes(variant.AsSingle())),
 			Variant.Type.String => variant.AsString().Hash() / (float) uint.MaxValue,
 			Variant.Type.Vector2 => new Variant[] { variant.AsVector2().X, variant.AsVector2().Y }.Select(HashF).Average(),
@@ -85,5 +85,5 @@ public static class Utils
 			Variant.Type.PackedColorArray => variant.AsColorArray().Select(c => HashF(c)).Average(),
 			_ => 0f
 		};
-	public static float HashF(params Variant[] variant) => variant.Select(HashF).Average();
+	public static float HashF(params Variant[] variant) => variant.Select(HashF).Sum();
 }
