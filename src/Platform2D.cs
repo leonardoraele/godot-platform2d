@@ -374,7 +374,7 @@ public partial class Platform2D : Polygon2D
 		Line2D line = new();
 		this.SetLineId(line, id);
 		this.AddChild(line);
-		line.Owner = this.Owner;
+		// line.Owner = this.Owner;
 		return line;
 	}
 
