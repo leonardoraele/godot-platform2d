@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO.Hashing;
 using System.Linq;
 using Godot;
-using Godot.Collections;
+using GodotDictionary = Godot.Collections.Dictionary;
 
 namespace Raele.Platform2D;
 
@@ -29,12 +29,11 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	[ExportToolButton("Manual Refresh")] Callable ToolButtonRefresh => Callable.From(this.Refresh);
 
+	[Export] public PlatformProfile? Profile;
+
 	[ExportGroup("Collider")]
 	[Export(PropertyHint.GroupEnable)] public bool AutoUpdateColliderEnabled = false;
 	[ExportToolButton("Create StaticBody2D")] Callable ToolButtonCreateCollider => Callable.From(this.OnCreateColliderPressed);
-
-	[ExportGroup("Edges")]
-	[Export] public Godot.Collections.Array<EdgeSettings> EdgesSettings = [];
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// FIELDS
@@ -93,6 +92,7 @@ public partial class Platform2D : Polygon2D
 		this.Polygon.Select(vertex => vertex.X + vertex.Y).Sum()
 		+ this.Polygons.SelectMany(polygon => polygon.AsInt32Array()).Sum();
 	private float LastCheckSum = float.NaN;
+	private Godot.Collections.Array<EdgeSettings> EdgesSettings => this.Profile?.EdgesSettings ?? [];
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// SIGNALS
@@ -156,7 +156,7 @@ public partial class Platform2D : Polygon2D
 	// 	base._PhysicsProcess(delta);
 	// }
 
-	public override void _ValidateProperty(Dictionary property)
+	public override void _ValidateProperty(GodotDictionary property)
 	{
 		if (property["name"].AsString() == nameof(this.ToolButtonCreateCollider))
 		{
