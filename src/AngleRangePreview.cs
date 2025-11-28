@@ -6,7 +6,7 @@ using Godot;
 namespace Raele.Platform2D;
 
 [Tool]
-public partial class EdgeAnglePreviewer : Control
+public partial class AngleRangePreview : Control
 {
 	// -----------------------------------------------------------------------------------------------------------------
 	// STATICS
@@ -26,8 +26,7 @@ public partial class EdgeAnglePreviewer : Control
 	// FIELDS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	public required Func<float> GetBeginAngle { get; init; }
-	public required Func<float> GetEndAngle { get; init; }
+	public required IHasAngleRange AngleRangeSource { get; init; }
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// PROPERTIES
@@ -43,9 +42,13 @@ public partial class EdgeAnglePreviewer : Control
 	// INTERNAL TYPES
 	// -----------------------------------------------------------------------------------------------------------------
 
-	// private enum Type {
-	// 	Value1,
-	// }
+	public interface IHasAngleRange
+	{
+		public float BeginAngleRangeRad { get; }
+		public float EndAngleRangeRad { get; }
+		public Func<string, bool> ShouldAddAngleRangePreview => _ => false;
+		public event Action? Changed;
+	}
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// GODOT EVENTS
@@ -63,10 +66,11 @@ public partial class EdgeAnglePreviewer : Control
 	// 	base._ExitTree();
 	// }
 
-	// public override void _Ready()
-	// {
-	// 	base._Ready();
-	// }
+	public override void _Ready()
+	{
+		base._Ready();
+		this.AngleRangeSource.Changed += this.QueueRedraw;
+	}
 
 	// public override void _Process(double delta)
 	// {
@@ -81,21 +85,27 @@ public partial class EdgeAnglePreviewer : Control
 	// public override string[] _GetConfigurationWarnings()
 	// 	=> base._PhysicsProcess(delta);
 
-
 	public override void _Draw()
 	{
 		base._Draw();
 
 		Vector2 center = this.GetSize() / 2;
 		float radius = Math.Min(center.X, center.Y) - MARGIN;
-		float beginAngle = this.GetBeginAngle();
-		float endAngle = this.GetEndAngle() + (this.GetBeginAngle() > this.GetEndAngle() ? Mathf.Tau : 0f);
+		float beginAngle = this.AngleRangeSource.BeginAngleRangeRad;
+		float endAngle = this.AngleRangeSource.EndAngleRangeRad;
+		if (beginAngle > endAngle + Mathf.Epsilon)
+		{
+			endAngle += Mathf.Tau;
+		}
 
-		// this.DrawCircle(center, radius + ARC_WIDTH / 2, Colors.DarkSlateGray);
+		// Draw background circle
 		this.DrawArc(center, radius, 0, Mathf.Tau, CIRCLE_DOTS_COUNT, Colors.DarkSlateGray, ARC_WIDTH);
+		// Draw angle/input arc
 		this.DrawArc(center, radius, beginAngle, endAngle, CIRCLE_DOTS_COUNT, Colors.White, ARC_WIDTH);
+		// Draw angle/input borders
 		this.DrawArc(center, radius - ARC_WIDTH / 2, 0, Mathf.Tau, CIRCLE_DOTS_COUNT, Colors.Black, 2f);
 		this.DrawArc(center, radius + ARC_WIDTH / 2, 0, Mathf.Tau, CIRCLE_DOTS_COUNT, Colors.Black, 2f);
+		// Draw angle markers/guides
 		Enumerable.Range(0, 4).Select(i => Vector2.Right.Rotated(Mathf.Tau * i / 4))
 			.ToList()
 			.ForEach(normal =>
@@ -129,7 +139,8 @@ public partial class EdgeAnglePreviewer : Control
 					1f
 				);
 			});
-		if (this.GetBeginAngle() == this.GetEndAngle())
+		// If angles are equal, draw a single line instead of an arc, and do it over the guides so that its not obscured
+		if (Mathf.IsEqualApprox(beginAngle, endAngle))
 		{
 			this.DrawLine(
 				center + Vector2.Right.Rotated(beginAngle) * (radius - ARC_WIDTH / 2),
@@ -138,6 +149,7 @@ public partial class EdgeAnglePreviewer : Control
 				1f
 			);
 		}
+		// Draw red angle limit marker
 		this.DrawLine(
 			center + Vector2.Left * (radius - ARC_WIDTH / 2),
 			center + Vector2.Left * (radius + ARC_WIDTH / 2),

@@ -6,7 +6,7 @@ using Godot;
 namespace Raele.Platform2D;
 
 [Tool][GlobalClass]
-public partial class EdgeSettings : Resource
+public partial class EdgeSettings : Resource, AngleRangePreview.IHasAngleRange
 {
 	// -----------------------------------------------------------------------------------------------------------------
 	// STATICS
@@ -18,25 +18,42 @@ public partial class EdgeSettings : Resource
 	// EXPORTS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	// [Export] public PackedScene? Template;
-	[Export(PropertyHint.Range, "-180,180,5,radians_as_degrees")] public float BeginAngle = 0f;
-	[Export(PropertyHint.Range, "-180,180,5,radians_as_degrees")] public float EndAngle = 0f;
-	[Export] public bool Disabled = false;
-	// [Export] public bool HasBeginCapSprite = false;
-	// [Export] public bool HasEndCapSprite = false;
+	[Export] public string Name = Guid.NewGuid().ToString().Substring(0, 4).ToUpper();
 
-	[ExportGroup("Texture")]
-	[Export] public Texture2D? Texture;
-	[Export(PropertyHint.Range, "0,1,or_greater,or_less")] public float Offset = 0.5f;
-	[Export(PropertyHint.Range, "0,2,0.01,or_greater,or_less")] public float Width = 1f;
-	[Export] public Line2D.LineTextureMode TextureMode = Line2D.LineTextureMode.Tile;
-	[Export] public Line2D.LineJointMode JointMode = Line2D.LineJointMode.Round;
-	[Export] public Color Tint = Colors.White;
-	[Export] public Gradient? Gradient;
-	[Export] public Material? Material;
+	// [Export] public PackedScene? Template;
+	[ExportCategory("Edge Location")]
+	[Export(PropertyHint.Range, "-180,180,5,radians_as_degrees")] public float BeginAngle
+		{ get => field; set { field = value; this.EmitChanged(); } } = 0f;
+	[Export(PropertyHint.Range, "-180,180,5,radians_as_degrees")] public float EndAngle
+		{ get => field; set { field = value; this.EmitChanged(); } } = 0f;
+	// TODO Make this field an array and a boolean to determine whether multiple overlaping Line2D nodes with each
+	// sprite should be created, or only a single Line2D with a random sample of the list of textures.
+	[Export] public Texture2D? Texture
+		{ get => field; set { field = value; this.EmitChanged(); } } = null;
+	[Export] public bool Disabled
+		{ get => field; set { field = value; this.EmitChanged(); } } = false;
+
+	[ExportGroup("Texture Options")]
+	[Export(PropertyHint.Range, "0,1,or_greater,or_less")] public float Offset
+		{ get => field; set { field = value; this.EmitChanged(); } } = 0.5f;
+	[Export(PropertyHint.Range, "0,2,0.01,or_greater,or_less")] public float Width
+		{ get => field; set { field = value; this.EmitChanged(); } } = 1f;
+	[Export] public Line2D.LineTextureMode TextureMode
+		{ get => field; set { field = value; this.EmitChanged(); } } = Line2D.LineTextureMode.Tile;
+	[Export] public Line2D.LineJointMode JointMode
+		{ get => field; set { field = value; this.EmitChanged(); } } = Line2D.LineJointMode.Round;
+	[Export] public Color Tint
+		{ get => field; set { field = value; this.EmitChanged(); } } = Colors.White;
+	[Export] public Gradient? Gradient
+		{ get => field; set { field = value; this.EmitChanged(); } } = null;
+	[Export] public Material? Material
+		{ get => field; set { field = value; this.EmitChanged(); } } = null;
+
+	[ExportGroup("Corner Sprites")]
+	[Export] public Godot.Collections.Array<CornerSpriteSettings> CornerSprites
+		{ get => field; set { field = value; this.EmitChanged(); } } = [];
 
 	[ExportGroup("Cap Sprites")]
-	[Export(PropertyHint.GroupEnable)] public bool HasCapSprites = false;
 	[Export] public Texture2D? BeginCapSprite;
 	[Export] public Texture2D? EndCapSprite;
 
@@ -44,29 +61,15 @@ public partial class EdgeSettings : Resource
 	// FIELDS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	private float LastCheckSum = -1;
-
 	// -----------------------------------------------------------------------------------------------------------------
 	// PROPERTIES
 	// -----------------------------------------------------------------------------------------------------------------
 
-	private bool HasChanges => !Mathf.IsEqualApprox(this.CheckSum, this.LastCheckSum);
-	private float CheckSum => Utils.HashF(
-		this.BeginAngle,
-		this.EndAngle,
-		this.Disabled,
-		this.Texture!,
-		this.Offset,
-		this.Width,
-		Variant.From(this.TextureMode),
-		Variant.From(this.JointMode),
-		this.Gradient!,
-		this.Material!,
-		this.HasCapSprites,
-		this.BeginCapSprite!,
-		this.EndCapSprite!
-	);
 	public bool Closed => Mathf.IsEqualApprox(this.BeginAngle + Mathf.Tau, this.EndAngle);
+	float AngleRangePreview.IHasAngleRange.BeginAngleRangeRad => this.BeginAngle;
+	float AngleRangePreview.IHasAngleRange.EndAngleRangeRad => this.EndAngle;
+	Func<string, bool> AngleRangePreview.IHasAngleRange.ShouldAddAngleRangePreview
+		=> prop => prop == nameof(this.BeginAngle);
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// SIGNALS
@@ -116,19 +119,6 @@ public partial class EdgeSettings : Resource
 	// METHODS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	public bool ConsumeChanges()
-	{
-		bool result = this.HasChanges;
-		if (result)
-		{
-			this.EmitChanged();
-			this.Reset();
-		}
-		return result;
-	}
-
-	private void Reset() => this.LastCheckSum = this.CheckSum;
-
 	public bool Test(PolygonEdge edge) => this.Test(edge.Normal);
 	public bool Test(Vector2 normal) => this.Test(normal.Angle());
 	public bool Test(float rotation) => this.BeginAngle <= this.EndAngle
@@ -138,7 +128,7 @@ public partial class EdgeSettings : Resource
 			|| Mathf.IsEqualApprox(rotation + Mathf.Tau, this.EndAngle)
 		: rotation <= this.EndAngle || this.BeginAngle <= rotation;
 
-	public void ConfigureLine(Line2D line)
+	public void Apply(Line2D line)
 	{
 		line.Points = this.ExpandShape(line.Points);
 		line.Texture = this.Texture;
@@ -148,6 +138,7 @@ public partial class EdgeSettings : Resource
 		line.DefaultColor = this.Tint;
 		line.Gradient = this.Gradient;
 		line.Material = this.Material;
+		line.TextureRepeat = CanvasItem.TextureRepeatEnum.Enabled;
 	}
 
 	private Vector2[] ExpandShape(Vector2[] vertexes)

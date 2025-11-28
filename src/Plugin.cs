@@ -6,7 +6,7 @@ namespace Raele.Platform2D;
 [Tool]
 public partial class Plugin : EditorPlugin
 {
-	private readonly EdgeAnglePreviewerPlugin edgeAnglePreviewPlugin = new();
+	private readonly AngleRangePreviewPlugin edgeAnglePreviewPlugin = new();
 
 	public override void _EnterTree()
 	{

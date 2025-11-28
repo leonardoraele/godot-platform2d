@@ -19,6 +19,7 @@ public partial class Platform2D : Polygon2D
 	// -----------------------------------------------------------------------------------------------------------------
 
 	public static readonly string EdgeLineMetaKey = $"{nameof(Platform2D)}__{nameof(EdgeLineMetaKey)}";
+	public static readonly string CornerSpriteGroupName = $"{nameof(Platform2D)}__{nameof(CornerSpriteGroupName)}";
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// EXPORTS
@@ -31,16 +32,13 @@ public partial class Platform2D : Polygon2D
 
 	[Export] public PlatformProfile? Profile;
 
-	[ExportGroup("Update Collider On Polygon Shape Changes")]
-	[Export(PropertyHint.GroupEnable)] public bool AutoUpdateColliderEnabled = false;
+	[ExportGroup("Automation Options")]
+	[Export] public bool MimicChildPaths = true;
+	[Export] public bool AutoUpdateChildCollider = true;
 	[ExportToolButton("Create StaticBody2D")] Callable ToolButtonCreateCollider => Callable.From(this.OnCreateColliderPressed);
 
-	// [ExportGroup("Additional Options")]
-	// /// <summary>
-	// /// Every time you change the polygon shape, new edges are added or removed according to the profile (if any). This
-	// /// option determines whether the Line2D edges should be hidden or deleted when they are no longer needed.
-	// /// </summary>
-	// [Export] public UnusedEdgesStrategyEnum UnusedEdgeLinesStrategy = UnusedEdgesStrategyEnum.Hide;
+	[ExportGroup("Additional Options")]
+	[Export] public bool ShowHiddenChildren = false;
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// FIELDS
@@ -128,11 +126,12 @@ public partial class Platform2D : Polygon2D
 			this.AllVertexes,
 			this.Profile ?? new Variant(),
 			/*, Variant.From(this.UnusedEdgeLinesStrategy)*/
-			this.Profile?.CheckSum.Calculate() ?? 0
+			this.Profile?.CheckSum.Calculate() ?? 0,
+			this.ShowHiddenChildren
 		);
 	});
 	private float LastCheckSum = float.NaN;
-	private IEnumerable<EdgeSettings> EdgesSettings => this.Profile?.EdgesSettings.Where(setting => setting != null) ?? [];
+	private IEnumerable<EdgeSettings> EdgesSettings => this.Profile?.EdgeTypes.Where(setting => setting != null) ?? [];
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// SIGNALS
@@ -187,10 +186,6 @@ public partial class Platform2D : Polygon2D
 			{
 				this.Refresh();
 			}
-			else if (this.EdgesSettings.Count(setting => setting.ConsumeChanges()) > 0)
-			{
-				this.RefreshEdges();
-			}
 		}
 	}
 
@@ -201,16 +196,26 @@ public partial class Platform2D : Polygon2D
 
 	public override void _ValidateProperty(GodotDictionary property)
 	{
-		if (property["name"].AsString() == nameof(this.ToolButtonCreateCollider))
+		switch (property["name"].AsString())
 		{
-			property["usage"] = this.Collider == null
-				? Variant.From(PropertyUsageFlags.Default)
-				: Variant.From(PropertyUsageFlags.NoEditor);
+			case "texture":
+			case "texture_offset":
+			case "texture_scale":
+			case "texture_rotation":
+				property["usage"] = Variant.From(PropertyUsageFlags.NoEditor);
+				break;
+			case nameof(this.ToolButtonCreateCollider):
+				property["usage"] = this.Collider == null
+					? Variant.From(PropertyUsageFlags.Default)
+					: Variant.From(PropertyUsageFlags.NoEditor);
+				break;
 		}
 	}
 
-	// public override string[] _GetConfigurationWarnings()
-	// 	=> base._PhysicsProcess(delta);
+	public override string[] _GetConfigurationWarnings()
+		=> new List<string>()
+			.Concat(this.Profile == null ? ["No profile assigned. Please assign a new profile resource in the inspector."] : [])
+			.ToArray();
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// EVENT HANDLERS
@@ -321,7 +326,7 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	private void RefreshCollisionPolygons()
 	{
-		if (!this.AutoUpdateColliderEnabled || this.Collider == null)
+		if (!this.AutoUpdateChildCollider || this.Collider == null)
 		{
 			return;
 		}
@@ -355,6 +360,7 @@ public partial class Platform2D : Polygon2D
 		HashSet<Line2D> lineSet = new();
 		XxHash3 hasher = new();
 
+		// TODO Replace the hash approach with the same one used in RefreshEdgeCorners
 		string Hash(params int[] values) {
 			hasher.Append(values.SelectMany(BitConverter.GetBytes).ToArray());
 			return $"{BitConverter.ToUInt16(hasher.GetHashAndReset()):X4}";
@@ -372,9 +378,12 @@ public partial class Platform2D : Polygon2D
 					// Must assign Points before calling EdgeSettings.ConfigureLine() because that method reads and
 					// updates the line's points.
 					line.Points = segment.vertexes;
-					edgeInfo.settings.ConfigureLine(line);
+					edgeInfo.settings.Apply(line);
 					line.Closed = result.Closed;
 					lineSet.Add(line);
+					line.Owner = this.ShowHiddenChildren ? this.Owner : null;
+
+					this.RefreshEdgeCorners(edgeInfo.settings, line);
 				}
 			}
 		}
@@ -391,6 +400,57 @@ public partial class Platform2D : Polygon2D
 					? line => line.QueueFree()
 					: line => line.Visible = false
 			);
+	}
+
+	/// <summary>
+	/// Updates corner decorations on the edges, if any.
+	/// </summary>
+	private void RefreshEdgeCorners(EdgeSettings edgeSettings, Line2D line)
+	{
+		if (this.Profile == null)
+		{
+			return;
+		}
+
+		IEnumerator<Sprite2D> cornerSprites = line.GetChildren().OfType<Sprite2D>()
+			.Where(sprite => sprite.IsInGroup(Platform2D.CornerSpriteGroupName))
+			.GetEnumerator();
+
+		foreach (
+			(int index, Vector2 position) point
+			in line.Points.Index()
+		)
+		{
+			CornerSpriteSettings? settings = edgeSettings.CornerSprites
+				.Where(settings => settings.Test(line.Points, point.index))
+				.OrderByDescending(settings => settings.MinCornerAngle)
+				.FirstOrDefault();
+			if (settings == null)
+			{
+				continue;
+			}
+			Sprite2D sprite = cornerSprites.MoveNext() ? cornerSprites.Current : new Sprite2D();
+			sprite.Position = point.position;
+			settings.Apply(sprite);
+			if (sprite != cornerSprites.Current)
+			{
+				line.AddChild(sprite);
+			}
+			sprite.AddToGroup(Platform2D.CornerSpriteGroupName);
+			sprite.Owner = this.ShowHiddenChildren ? this.Owner : null;
+		}
+
+		while (cornerSprites.MoveNext())
+		{
+			if (Engine.IsEditorHint())
+			{
+				cornerSprites.Current.QueueFree();
+			}
+			else
+			{
+				cornerSprites.Current.Visible = false;
+			}
+		}
 	}
 
 	/// <summary>
