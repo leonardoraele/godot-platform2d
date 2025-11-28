@@ -19,14 +19,15 @@ public partial class EdgeSettings : Resource
 	// -----------------------------------------------------------------------------------------------------------------
 
 	// [Export] public PackedScene? Template;
+	[ExportCategory("Edge Location")]
 	[Export(PropertyHint.Range, "-180,180,5,radians_as_degrees")] public float BeginAngle = 0f;
 	[Export(PropertyHint.Range, "-180,180,5,radians_as_degrees")] public float EndAngle = 0f;
-	[Export] public bool Disabled = false;
 	// [Export] public bool HasBeginCapSprite = false;
 	// [Export] public bool HasEndCapSprite = false;
-
-	[ExportGroup("Texture")]
 	[Export] public Texture2D? Texture;
+	[Export] public bool Disabled = false;
+
+	[ExportGroup("Texture Options")]
 	[Export(PropertyHint.Range, "0,1,or_greater,or_less")] public float Offset = 0.5f;
 	[Export(PropertyHint.Range, "0,2,0.01,or_greater,or_less")] public float Width = 1f;
 	[Export] public Line2D.LineTextureMode TextureMode = Line2D.LineTextureMode.Tile;
@@ -148,6 +149,7 @@ public partial class EdgeSettings : Resource
 		line.DefaultColor = this.Tint;
 		line.Gradient = this.Gradient;
 		line.Material = this.Material;
+		line.TextureRepeat = CanvasItem.TextureRepeatEnum.Enabled;
 	}
 
 	private Vector2[] ExpandShape(Vector2[] vertexes)

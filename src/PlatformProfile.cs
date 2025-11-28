@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using Godot;
 
 namespace Raele.Platform2D;
@@ -5,15 +9,61 @@ namespace Raele.Platform2D;
 [Tool][GlobalClass]
 public partial class PlatformProfile : Resource
 {
-	[ExportGroup("Override Polygon2D Texture Settings", "Fill")]
+	// -----------------------------------------------------------------------------------------------------------------
+	// STATICS
+	// -----------------------------------------------------------------------------------------------------------------
+
+	private static Dictionary<ulong, WeakReference<PlatformProfile>> AllProfiles = new();
+
+	public static string GetEdgeOptionsForCorner(CornerSpriteSettings settings)
+	{
+		if (TryGetProfileForCornerSettings(settings, out PlatformProfile? profile))
+		{
+			return profile.EdgesSettings.Index()
+				.Select(tuple => $"${tuple.Item}:{Mathf.Pow(2, tuple.Index)}")
+				.ToArray()
+				.Join(",");
+		}
+		return "";
+	}
+
+	private static bool TryGetProfileForCornerSettings(CornerSpriteSettings settings, [NotNullWhen(true)] out PlatformProfile? result)
+	{
+		foreach (WeakReference<PlatformProfile> @ref in AllProfiles.Values)
+		{
+			if (@ref.TryGetTarget(out PlatformProfile? profile) && profile.CornerSpriteSettings.Contains(settings))
+			{
+				result = profile;
+				return true;
+			}
+		}
+		result = null;
+		return false;
+	}
+
+	public PlatformProfile() => AllProfiles.Add(this.GetInstanceId(), new WeakReference<PlatformProfile>(this));
+	~PlatformProfile() => AllProfiles.Remove(this.GetInstanceId());
+
+	// -----------------------------------------------------------------------------------------------------------------
+	// EXPORTS
+	// -----------------------------------------------------------------------------------------------------------------
+
+	[ExportGroup("Fill Sprites", "Fill")]
 	[Export(PropertyHint.GroupEnable)] public bool FillEnabled = false;
 	[Export] public Texture2D? FillTexture;
 	[Export(PropertyHint.None, "suffix:px")] public Vector2 FillOffset = Vector2.Zero;
 	[Export(PropertyHint.Link)] public Vector2 FillScale = Vector2.One;
 	[Export(PropertyHint.Range, "0,2,suffix:Radian Pi")] public float FillRotation = 0.0f;
 
-	[ExportGroup("Edges")]
+	[ExportGroup("Edge Sprites")]
 	[Export] public Godot.Collections.Array<EdgeSettings> EdgesSettings = [];
+
+	[ExportGroup("Corner Sprites")]
+	[Export] public Godot.Collections.Array<CornerSpriteSettings> CornerSpriteSettings = [];
+
+	// -----------------------------------------------------------------------------------------------------------------
+	// PROPERTIES
+	// -----------------------------------------------------------------------------------------------------------------
 
 	public CheckSumHelper CheckSum => field ??= new CheckSumHelper(() => Utils.HashF(
 		this.FillEnabled,
@@ -24,10 +74,15 @@ public partial class PlatformProfile : Resource
 		this.EdgesSettings
 	));
 
+	// -----------------------------------------------------------------------------------------------------------------
+	// METHODS
+	// -----------------------------------------------------------------------------------------------------------------
+
 	public void ConfigureTexture(Polygon2D polygon)
 	{
 		if (!this.FillEnabled)
 		{
+			polygon.Texture = null;
 			return;
 		}
 		polygon.Texture = this.FillTexture;

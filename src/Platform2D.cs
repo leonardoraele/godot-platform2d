@@ -31,8 +31,9 @@ public partial class Platform2D : Polygon2D
 
 	[Export] public PlatformProfile? Profile;
 
-	[ExportGroup("Update Collider On Polygon Shape Changes")]
-	[Export(PropertyHint.GroupEnable)] public bool AutoUpdateColliderEnabled = false;
+	[ExportGroup("Automation Options")]
+	[Export] public bool MimicChildPaths = true;
+	[Export] public bool AutoUpdateChildCollider = true;
 	[ExportToolButton("Create StaticBody2D")] Callable ToolButtonCreateCollider => Callable.From(this.OnCreateColliderPressed);
 
 	// [ExportGroup("Additional Options")]
@@ -201,16 +202,26 @@ public partial class Platform2D : Polygon2D
 
 	public override void _ValidateProperty(GodotDictionary property)
 	{
-		if (property["name"].AsString() == nameof(this.ToolButtonCreateCollider))
+		switch (property["name"].AsString())
 		{
-			property["usage"] = this.Collider == null
-				? Variant.From(PropertyUsageFlags.Default)
-				: Variant.From(PropertyUsageFlags.NoEditor);
+			case "texture":
+			case "texture_offset":
+			case "texture_scale":
+			case "texture_rotation":
+				property["usage"] = Variant.From(PropertyUsageFlags.NoEditor);
+				break;
+			case nameof(this.ToolButtonCreateCollider):
+				property["usage"] = this.Collider == null
+					? Variant.From(PropertyUsageFlags.Default)
+					: Variant.From(PropertyUsageFlags.NoEditor);
+				break;
 		}
 	}
 
-	// public override string[] _GetConfigurationWarnings()
-	// 	=> base._PhysicsProcess(delta);
+	public override string[] _GetConfigurationWarnings()
+		=> new List<string>()
+			.Concat(this.Profile == null ? ["No profile assigned. Please assign a new profile resource in the inspector."] : [])
+			.ToArray();
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// EVENT HANDLERS
@@ -321,7 +332,7 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	private void RefreshCollisionPolygons()
 	{
-		if (!this.AutoUpdateColliderEnabled || this.Collider == null)
+		if (!this.AutoUpdateChildCollider || this.Collider == null)
 		{
 			return;
 		}
