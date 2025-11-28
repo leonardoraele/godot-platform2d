@@ -152,10 +152,11 @@ public partial class Platform2D : Polygon2D
 	public override void _Ready()
 	{
 		base._Ready();
-		if (Engine.IsEditorHint())
-		{
-			this.Refresh();
-		}
+		// if (Engine.IsEditorHint())
+		// {
+		// 	this.Refresh();
+		// }
+		this.Refresh();
 	}
 
 	public override void _Process(double delta)
@@ -399,7 +400,7 @@ public partial class Platform2D : Polygon2D
 		Line2D line = new();
 		this.SetLineId(line, id);
 		this.AddChild(line);
-		line.Owner = this.Owner;
+		// line.Owner = this.Owner;
 		return line;
 	}
 

@@ -15,7 +15,8 @@ public partial class Path2DObserver : Node
 	// STATICS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	public static readonly TimeSpan CheckForChangesInterval = TimeSpan.FromSeconds(1) / 6;
+	// public static readonly TimeSpan CheckForChangesInterval = TimeSpan.FromSeconds(1) / 6;
+	public static readonly TimeSpan LAG_DELAY = TimeSpan.FromMicroseconds(150);
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// EXPORTS
@@ -28,6 +29,7 @@ public partial class Path2DObserver : Node
 	// -----------------------------------------------------------------------------------------------------------------
 
 	private float LastFrameChecksum = float.NaN;
+	private ulong CheckAfterTime = 0;
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// PROPERTIES
@@ -38,6 +40,7 @@ public partial class Path2DObserver : Node
 	// -----------------------------------------------------------------------------------------------------------------
 
 	[Signal] public delegate void PathChangedEventHandler(Path2D path);
+	[Signal] public delegate void LagDetectedEventHandler();
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// INTERNAL TYPES
@@ -61,40 +64,26 @@ public partial class Path2DObserver : Node
 	// 	base._ExitTree();
 	// }
 
-	public override void _Ready()
-	{
-		base._Ready();
-
-		// Timer timer = new()
-		// {
-		// 	WaitTime = CheckForChangesInterval.TotalSeconds,
-		// 	OneShot = false,
-		// 	Autostart = true,
-		// 	IgnoreTimeScale = true,
-		// 	Paused = false,
-		// };
-		// timer.Timeout += this.CheckForChanges;
-		// this.AddChild(timer);
-
-		// TODO FIXME Using System.Timers.Timer in tool scripts causes Godot to fail to unload assemblies when building
-		// the project while a scene with this node is open. Consider replacing it with the Godot.Timer node or another
-		// approach.
-		System.Timers.Timer timer = new()
-		{
-			Interval = CheckForChangesInterval.TotalMilliseconds,
-			AutoReset = true,
-		};
-		// Must queue the method to be invoked on the godot thread since the CheckForChanges method accesses Godot API.
-		Callable callable = Callable.From(this.CheckForChanges);
-		timer.Elapsed += (_, _) => callable.CallDeferred();
-		timer.Start();
-		this.TreeExiting += timer.Stop;
-	}
-
-	// public override void _Process(double delta)
+	// public override void _Ready()
 	// {
-	// 	base._Process(delta);
+	// 	base._Ready();
 	// }
+
+	public override void _Process(double delta)
+	{
+		base._Process(delta);
+		double fps = 1.0 / delta;
+		if (fps > 59 && Time.GetTicksMsec() >= this.CheckAfterTime)
+		{
+			this.CheckForChanges();
+		}
+		else if (fps <= 10)
+		{
+			this.EmitSignal(SignalName.LagDetected);
+			GD.PushWarning($"{nameof(Platform2D)}: Updates to Path2D nodes are taking too long do process. ({fps:F0} FPS) Please increase the baked interval of your Path2D nodes.");
+			this.CheckAfterTime = Time.GetTicksMsec() + (ulong) LAG_DELAY.TotalMilliseconds;
+		}
+	}
 
 	// public override void _PhysicsProcess(double delta)
 	// {

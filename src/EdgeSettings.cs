@@ -142,7 +142,6 @@ public partial class EdgeSettings : Resource
 	{
 		line.Points = this.ExpandShape(line.Points);
 		line.Texture = this.Texture;
-		line.TextureRepeat = CanvasItem.TextureRepeatEnum.Enabled;
 		line.Width = (this.Texture?.GetHeight() ?? 10f) * this.Width;
 		line.TextureMode = this.TextureMode;
 		line.JointMode = this.JointMode;
