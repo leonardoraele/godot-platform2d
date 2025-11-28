@@ -31,7 +31,7 @@ public partial class Platform2D : Polygon2D
 
 	[Export] public PlatformProfile? Profile;
 
-	[ExportGroup("Collider")]
+	[ExportGroup("Update Collider On Polygon Shape Changes")]
 	[Export(PropertyHint.GroupEnable)] public bool AutoUpdateColliderEnabled = false;
 	[ExportToolButton("Create StaticBody2D")] Callable ToolButtonCreateCollider => Callable.From(this.OnCreateColliderPressed);
 
@@ -111,7 +111,26 @@ public partial class Platform2D : Polygon2D
 	// TODO FIXME Commenting AllVertexes for now because the refresh interrupts the user editing the polygon. We should
 	// find a better way to automatically detect changes to the polygon and call Refresh without impacting the
 	// user experience. For now, the user has to manually press the "Manual Refresh" button.
-	private float CheckSum => Utils.HashF(/*this.AllVertexes, */ Variant.From(this.Profile)/*, Variant.From(this.UnusedEdgeLinesStrategy)*/);
+	private CheckSumHelper CheckSum => field ??= new CheckSumHelper(() =>
+	{
+		// GD.PrintS(new
+		// {
+		// 	this.AllVertexes,
+		// 	this.Profile,
+		// 	CheckSum = this.Profile?.CheckSum.Calculate(),
+		// 	Hashes = new Variant[] {
+		// 		this.AllVertexes,
+		// 		this.Profile ?? new Variant(),
+		// 		Variant.From(this.Profile?.CheckSum.Calculate() ?? new Variant())
+		// 	}.Select(Utils.HashF).ToArray().ToString(),
+		// });
+		return Utils.HashF(
+			this.AllVertexes,
+			this.Profile ?? new Variant(),
+			/*, Variant.From(this.UnusedEdgeLinesStrategy)*/
+			this.Profile?.CheckSum.Calculate() ?? 0
+		);
+	});
 	private float LastCheckSum = float.NaN;
 	private IEnumerable<EdgeSettings> EdgesSettings => this.Profile?.EdgesSettings.Where(setting => setting != null) ?? [];
 
@@ -164,7 +183,7 @@ public partial class Platform2D : Polygon2D
 		base._Process(delta);
 		if (Engine.IsEditorHint())
 		{
-			if (this.ConsumeChanges())
+			if (this.CheckSum.CheckForChanges())
 			{
 				this.Refresh();
 			}
@@ -237,6 +256,7 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	public void Refresh()
 	{
+		this.RefreshFillTexture();
 		this.RefreshPolygonsVertexes();
 		this.RefreshEdges();
 		this.RefreshCollisionPolygons();
@@ -246,6 +266,8 @@ public partial class Platform2D : Polygon2D
 				: CollisionPolygon2D.BuildModeEnum.Solids
 			);
 	}
+
+	private void RefreshFillTexture() => this.Profile?.ConfigureTexture(this);
 
 	/// <summary>
 	/// Sets this Polygon2D's vertex positions based on the child Path2D nodes, if any.
@@ -416,19 +438,4 @@ public partial class Platform2D : Polygon2D
 	/// it's not found.
 	/// </summary>
 	private string GetLineId(Line2D line) => line.GetMeta(Platform2D.EdgeLineMetaKey, "").AsString();
-
-	/// <summary>
-	/// Checks if any relevant property has changed since the last time this method was called. It reads
-	/// <see cref="CheckSum"/> to determine if anything changed, and updates <see cref="LastCheckSum"/> accordingly.
-	/// </summary>
-	private bool ConsumeChanges()
-	{
-		float currentCheckSum = this.CheckSum;
-		if (currentCheckSum == this.LastCheckSum)
-		{
-			return false;
-		}
-		this.LastCheckSum = currentCheckSum;
-		return true;
-	}
 }
