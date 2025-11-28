@@ -351,7 +351,6 @@ public partial class Platform2D : Polygon2D
 					// updates the line's points.
 					line.Points = segment.vertexes;
 					edgeInfo.settings.ConfigureLine(line);
-					line.Name = $"Edge #{hash} [{nameof(Line2D)}]";
 					line.Closed = result.Closed;
 					lineSet.Add(line);
 				}
@@ -397,7 +396,10 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	private Line2D CreateEdgeLine(string id)
 	{
-		Line2D line = new();
+		Line2D line = new()
+		{
+			Name = $"Edge #{id} [{nameof(Line2D)}]",
+		};
 		this.SetLineId(line, id);
 		this.AddChild(line);
 		// line.Owner = this.Owner;
