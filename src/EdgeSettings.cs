@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -17,6 +16,8 @@ public partial class EdgeSettings : Resource
 	// -----------------------------------------------------------------------------------------------------------------
 	// EXPORTS
 	// -----------------------------------------------------------------------------------------------------------------
+
+	[Export] public string Name = "New edge";
 
 	// [Export] public PackedScene? Template;
 	[ExportCategory("Edge Location")]

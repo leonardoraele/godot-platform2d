@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using Godot;
 using GodotDictionary = Godot.Collections.Dictionary;
 
@@ -17,9 +20,46 @@ public partial class CornerSpriteSettings : SpriteSettings
 	// -----------------------------------------------------------------------------------------------------------------
 
 	[Export(PropertyHint.Range, "0,2,suffix:π")] public float MinAngle = 0f;
-	[Export(PropertyHint.Range, "0,2,suffix:π")] public float MaxAngle = 0f;
+	[Export(PropertyHint.Range, "0,2,suffix:π")] public float MaxAngle = 2f;
 	[Export] public CornerTypeEnum CornerType = CornerTypeEnum.Convex;
-	[Export(PropertyHint.Flags)] public uint OnEdges = uint.MaxValue;
+	/// <summary>
+	/// This is an ethemeral export, displayed in the editor but not saved in the resource file. It is used as a
+	/// bitfield to select which edges this corner sprite applies to. Changing this field updates the
+	/// <see cref="AppliedEdgeNames"/> field.
+	/// </summary>
+	[Export(PropertyHint.Flags)] public uint OnEdges
+	{
+		get
+		{
+			return field = this.AppliedEdgeNames.Select(name => this.TryGetFlagByName(name, out uint flag) ? flag : 0)
+				.Aggregate((uint) 0, (a, b) => a | b);
+		}
+		set
+		{
+			// Remove unselected edges
+			Enumerable.Range(0, 32)
+				.Select(i => ((uint) 1) << i)
+				.Where(flag => (field & flag) > (value & flag))
+				.Select(flag => this.TryGetNameByFlag(flag, out string? name) ? name : null)
+				.Where(name => !string.IsNullOrEmpty(name))
+				.ToList()
+				.ForEach(name => this.AppliedEdgeNames.Remove(name!));
+
+			// Add newly selected edges
+			Enumerable.Range(0, 32)
+				.Select(i => ((uint) 1) << i)
+				.Where(flag => (value & flag) > (field & flag))
+				.Select(flag => this.TryGetNameByFlag(flag, out string? name) ? name : null)
+				.Where(name => !string.IsNullOrEmpty(name))
+				.ToList()
+				.ForEach(name => this.AppliedEdgeNames.Add(name!));
+		}
+	}
+	/// <summary>
+	/// This is a computed export, hidden in the editor but saved in the resource file. It is updated by the
+	/// <see cref="OnEdges"/> property.
+	/// </summary>
+	[Export] public Godot.Collections.Array<string> AppliedEdgeNames = [];
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// FIELDS
@@ -31,7 +71,17 @@ public partial class CornerSpriteSettings : SpriteSettings
 	// PROPERTIES
 	// -----------------------------------------------------------------------------------------------------------------
 
-
+	private List<(uint flag, string name)> EdgeFlagNames
+		=> PlatformProfile.TryGetProfileForCornerSettings(this, out PlatformProfile? profile)
+			? profile.EdgesSettings.Index()
+				.Where(edge => edge.Item != null)
+				.Select(edge =>
+				{
+					uint flag = ((uint) 1) << edge.Index;
+					return (flag, edge.Item.Name);
+				})
+				.ToList()
+			: [];
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// SIGNALS
@@ -92,7 +142,13 @@ public partial class CornerSpriteSettings : SpriteSettings
 		base._ValidateProperty(property);
 		if (property["name"].AsString() == nameof(this.OnEdges))
 		{
-			property["hint_string"] = PlatformProfile.GetEdgeOptionsForCorner(this);
+			property["usage"] = (long) PropertyUsageFlags.Editor; // Shown in the editor but not saved
+			property["hint_string"] = this.EdgeFlagNames.Select(tuple => $"{tuple.name}:{tuple.flag}")
+				.Aggregate((a, b) => $"{a},{b}");
+		}
+		else if (property["name"].AsString() == nameof(this.AppliedEdgeNames))
+		{
+			property["usage"] = (long) PropertyUsageFlags.NoEditor; // Hidden in editor but saved
 		}
 	}
 
@@ -100,5 +156,15 @@ public partial class CornerSpriteSettings : SpriteSettings
 	// METHODS
 	// -----------------------------------------------------------------------------------------------------------------
 
+	private bool TryGetFlagByName(string name, out uint flag)
+	{
+		flag = this.EdgeFlagNames.FirstOrDefault(en => en.name == name).flag;
+		return flag != 0;
+	}
 
+	private bool TryGetNameByFlag(uint flag, [NotNullWhen(true)] out string? name)
+	{
+		name = this.EdgeFlagNames.FirstOrDefault(en => en.flag == flag).name;
+		return !string.IsNullOrEmpty(name);
+	}
 }

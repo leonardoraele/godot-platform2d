@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using Godot;
 
 namespace Raele.Platform2D;
@@ -15,19 +14,7 @@ public partial class PlatformProfile : Resource
 
 	private static Dictionary<ulong, WeakReference<PlatformProfile>> AllProfiles = new();
 
-	public static string GetEdgeOptionsForCorner(CornerSpriteSettings settings)
-	{
-		if (TryGetProfileForCornerSettings(settings, out PlatformProfile? profile))
-		{
-			return profile.EdgesSettings.Index()
-				.Select(tuple => $"${tuple.Item}:{Mathf.Pow(2, tuple.Index)}")
-				.ToArray()
-				.Join(",");
-		}
-		return "";
-	}
-
-	private static bool TryGetProfileForCornerSettings(CornerSpriteSettings settings, [NotNullWhen(true)] out PlatformProfile? result)
+	public static bool TryGetProfileForCornerSettings(CornerSpriteSettings settings, [NotNullWhen(true)] out PlatformProfile? result)
 	{
 		foreach (WeakReference<PlatformProfile> @ref in AllProfiles.Values)
 		{
