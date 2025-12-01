@@ -76,14 +76,15 @@ public partial class EdgeIntersectionSpriteSettings : CornerSpriteSettings
 
 	private List<(uint flag, string name)> EdgeFlagNames
 		=> PlatformProfile.TryGetProfileForCornerSettings(this, out PlatformProfile? profile)
-			? profile.EdgeTypes.Index()
-				.Where(edge => edge.Item != null)
+			? profile.EdgeTypes?.Index()
+				.OfType<(int index, EdgeSettings settings)>()
 				.Select(edge =>
 				{
-					uint flag = ((uint) 1) << edge.Index;
-					return (flag, edge.Item.Name);
+					uint flag = ((uint) 1) << edge.index;
+					return (flag, edge.settings.Name);
 				})
 				.ToList()
+				?? []
 			: [];
 
 	// -----------------------------------------------------------------------------------------------------------------

@@ -124,7 +124,7 @@ public partial class Platform2D : Polygon2D
 		get => this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
 	}
 	private float LastCheckSum = float.NaN;
-	private IEnumerable<EdgeSettings> EdgesSettings => this.Profile?.EdgeTypes.Where(setting => setting != null) ?? [];
+	private IEnumerable<EdgeSettings> EdgesSettings => this.Profile?.EdgeTypes?.OfType<EdgeSettings>() ?? [];
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// SIGNALS
@@ -407,8 +407,8 @@ public partial class Platform2D : Polygon2D
 		foreach ((int index, Vector2 position) point in line.Points.Index())
 		{
 			CornerSpriteSettings? cornerSettings = edgeSettings.CornerSprites
-				.Where(settings => settings.Test(line.Points, point.index))
-				.OrderByDescending(settings => settings.MinCornerAngle)
+				?.Where(settings => settings?.Test(line.Points, point.index) == true)
+				.OrderByDescending(settings => settings!.MinCornerAngle)
 				.FirstOrDefault();
 
 			if (cornerSettings == null)

@@ -97,4 +97,25 @@ public static class Utils
 			_ => 0f
 		};
 	public static float HashF(params Variant[] variants) => variants.Select(HashF).Sum();
+
+	public static void ObserveArrayExport<[MustBeVariant] T>(Resource subject, Godot.Collections.Array<T?>? array)
+	{
+		foreach (T? item in array ?? [])
+		{
+			if (item is Resource resource)
+			{
+				bool signalAlreadyConnected = resource.GetSignalConnectionList(PlatformProfile.SignalName.Changed)
+					.Select(signal => signal["callable"].AsCallable())
+					.Any(callable =>
+					{
+						return callable.Target == subject && callable.Method == nameof(Resource.MethodName.EmitChanged)
+							|| callable.Delegate.Target == subject && callable.Delegate.Method.Name == nameof(Resource.MethodName.EmitChanged);
+					});
+				if (!signalAlreadyConnected)
+				{
+					resource.Changed += subject.EmitChanged;
+				}
+			}
+		}
+	}
 }

@@ -53,8 +53,8 @@ public partial class EdgeSettings : Resource, AngleRangePreview.IHasAngleRange
 		{ get => field; set { field = value; this.EmitChanged(); } } = null;
 
 	[ExportGroup("Corner Sprites")]
-	[Export] public Godot.Collections.Array<CornerSpriteSettings> CornerSprites
-		{ get => field; set { field = value; this.EmitChanged(); } } = [];
+	[Export] public Godot.Collections.Array<CornerSpriteSettings?>? CornerSprites
+		{ get => field; set { field = value; Utils.ObserveArrayExport(this, field); this.EmitChanged(); } } = null;
 
 	[ExportGroup("Cap Sprites")]
 	[Export] public SpriteSettings? BeginCapSprite

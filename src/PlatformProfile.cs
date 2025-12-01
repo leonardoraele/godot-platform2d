@@ -19,7 +19,7 @@ public partial class PlatformProfile : Resource
 	{
 		foreach (WeakReference<PlatformProfile> wref in GlobalInstanceRepository.Values)
 		{
-			if (wref.TryGetTarget(out PlatformProfile? profile) && profile.EdgeTypes.Any(edge => edge.CornerSprites.Contains(settings)))
+			if (wref.TryGetTarget(out PlatformProfile? profile) && profile.EdgeTypes?.Any(edge => edge?.CornerSprites?.Contains(settings) == true) == true)
 			{
 				result = profile;
 				return true;
@@ -49,10 +49,10 @@ public partial class PlatformProfile : Resource
 		{ get => field; set { field = value; this.EmitChanged(); } } = 0.0f;
 
 	[ExportGroup("Edge Sprites")]
-	[Export] public Godot.Collections.Array<EdgeSettings> EdgeTypes
-		{ get => field; set { field = value; this.ObserveArray(field); this.EmitChanged(); } } = [];
-	[Export] public Godot.Collections.Array<EdgeIntersectionSpriteSettings> EdgeIntersectionCorners
-		{ get => field; set { field = value; this.ObserveArray(field); this.EmitChanged(); } } = [];
+	[Export] public Godot.Collections.Array<EdgeSettings?>? EdgeTypes
+		{ get => field; set { field = value; Utils.ObserveArrayExport(this, field); this.EmitChanged(); } } = [];
+	[Export] public Godot.Collections.Array<EdgeIntersectionSpriteSettings?>? EdgeIntersectionCorners
+		{ get => field; set { field = value; Utils.ObserveArrayExport(this, field); this.EmitChanged(); } } = [];
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// PROPERTIES
@@ -74,29 +74,5 @@ public partial class PlatformProfile : Resource
 		polygon.TextureScale = Vector2.One / this.FillScale;
 		polygon.TextureRotation = this.FillRotation * Mathf.Pi;
 		polygon.TextureRepeat = CanvasItem.TextureRepeatEnum.Enabled;
-	}
-
-	private void ObserveArray<[MustBeVariant] T>(Godot.Collections.Array<T> array)
-	{
-		foreach (var item in array)
-		{
-			if (item is Resource resource)
-			{
-				bool signalAlreadyConnected = resource.GetSignalConnectionList(PlatformProfile.SignalName.Changed)
-					.Select(signal => signal["callable"].AsCallable())
-					.Any(callable =>
-					{
-						return callable.Target == this && callable.Method == nameof(this.EmitChanged)
-							|| callable.Delegate.Target == this && callable.Delegate.Method.Name == nameof(this.EmitChanged);
-					});
-				if (!signalAlreadyConnected)
-				{
-					resource.Changed += () =>
-					{
-						this.EmitChanged();
-					};
-				}
-			}
-		}
 	}
 }
