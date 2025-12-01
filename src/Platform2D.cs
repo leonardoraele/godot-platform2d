@@ -7,9 +7,12 @@ using GodotDictionary = Godot.Collections.Dictionary;
 
 namespace Raele.Platform2D;
 
-// TODO Add option to configure textures for the edges.
 // TODO Add option to randomly place selected texture sprites on the polygon (on either edge or fill) — for decorations
 // or variation.
+// TODO Limit polygons to only a single one per Platform2D node to prevent confusion and bad practices (e.g. updating
+// one polygon refreshes all of them; or adding a new vertex that does not belong to any polygon; or one "polygon" node
+// containing multiple polygons). To do so, hide the Polygons and InternalVertexColor fields in the editor, clear these
+// fields on refresh, and add a warning if the Platform2D node has multiple Path2D children.
 
 [Tool]
 public partial class Platform2D : Polygon2D
@@ -30,15 +33,29 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	[ExportToolButton("Manual Refresh")] Callable ToolButtonRefresh => Callable.From(this.Refresh);
 
-	[Export] public PlatformProfile? Profile;
+	[Export] public PlatformProfile? Profile
+	{
+		get => field;
+		set {
+			field = value;
+			if (field != null)
+			{
+				field.Changed += this.Refresh;
+			}
+			this.Refresh();
+		}
+	} = null;
 
 	[ExportGroup("Automation Options")]
-	[Export] public bool MimicChildPaths = true;
-	[Export] public bool AutoUpdateChildCollider = true;
+	[Export] public bool MimicChildPaths
+		{ get => field; set { field = value; this.Refresh(); } } = true;
+	[Export] public bool AutoUpdateChildCollider
+		{ get => field; set { field = value; this.RefreshCollisionPolygons(); } } = true;
 	[ExportToolButton("Create StaticBody2D")] Callable ToolButtonCreateCollider => Callable.From(this.OnCreateColliderPressed);
 
 	[ExportGroup("Additional Options")]
-	[Export] public bool ShowHiddenChildren = false;
+	[Export] public bool ShowHiddenChildren
+		{ get => field; set { field = value; this.Refresh(); } } = false;
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// FIELDS
@@ -106,30 +123,6 @@ public partial class Platform2D : Polygon2D
 		}
 	}
 	public IEnumerable<CollisionPolygon2D> CollisionPolygons => this.Collider?.GetChildren().OfType<CollisionPolygon2D>() ?? [];
-	// TODO FIXME Commenting AllVertexes for now because the refresh interrupts the user editing the polygon. We should
-	// find a better way to automatically detect changes to the polygon and call Refresh without impacting the
-	// user experience. For now, the user has to manually press the "Manual Refresh" button.
-	private CheckSumHelper CheckSum => field ??= new CheckSumHelper(() =>
-	{
-		// GD.PrintS(new
-		// {
-		// 	this.AllVertexes,
-		// 	this.Profile,
-		// 	CheckSum = this.Profile?.CheckSum.Calculate(),
-		// 	Hashes = new Variant[] {
-		// 		this.AllVertexes,
-		// 		this.Profile ?? new Variant(),
-		// 		Variant.From(this.Profile?.CheckSum.Calculate() ?? new Variant())
-		// 	}.Select(Utils.HashF).ToArray().ToString(),
-		// });
-		return Utils.HashF(
-			this.AllVertexes,
-			this.Profile ?? new Variant(),
-			/*, Variant.From(this.UnusedEdgeLinesStrategy)*/
-			this.Profile?.CheckSum.Calculate() ?? 0,
-			this.ShowHiddenChildren
-		);
-	});
 	private float LastCheckSum = float.NaN;
 	private IEnumerable<EdgeSettings> EdgesSettings => this.Profile?.EdgeTypes.Where(setting => setting != null) ?? [];
 
@@ -177,17 +170,10 @@ public partial class Platform2D : Polygon2D
 		this.Refresh();
 	}
 
-	public override void _Process(double delta)
-	{
-		base._Process(delta);
-		if (Engine.IsEditorHint())
-		{
-			if (this.CheckSum.CheckForChanges())
-			{
-				this.Refresh();
-			}
-		}
-	}
+	// public override void _Process(double delta)
+	// {
+	// 	base._Process(delta);
+	// }
 
 	// public override void _PhysicsProcess(double delta)
 	// {
