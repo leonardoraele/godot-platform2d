@@ -123,7 +123,6 @@ public partial class Platform2D : Polygon2D
 	{
 		get => this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
 	}
-	// public IEnumerable<CollisionPolygon2D> CollisionPolygons => this.CollisionObject?.GetChildren().OfType<CollisionPolygon2D>() ?? [];
 	private float LastCheckSum = float.NaN;
 	private IEnumerable<EdgeSettings> EdgesSettings => this.Profile?.EdgeTypes.Where(setting => setting != null) ?? [];
 
@@ -199,7 +198,7 @@ public partial class Platform2D : Polygon2D
 				property["usage"] = Variant.From(PropertyUsageFlags.NoEditor);
 				break;
 			case nameof(this.ToolButtonCreateCollider):
-				property["usage"] = this.CollisionObject == null
+				property["usage"] = this.CollisionObject == null || this.CollisionPolygon2D == null
 					? Variant.From(PropertyUsageFlags.Default)
 					: Variant.From(PropertyUsageFlags.NoEditor);
 				break;
@@ -222,6 +221,12 @@ public partial class Platform2D : Polygon2D
 			StaticBody2D collider = new StaticBody2D() { Name = nameof(Godot.StaticBody2D) };
 			this.AddChild(collider);
 			collider.Owner = this.Owner;
+		}
+		if (this.CollisionPolygon2D == null)
+		{
+			this.CollisionPolygon2D = new CollisionPolygon2D() { Name = nameof(Godot.CollisionPolygon2D) };
+			this.CollisionObject!.AddChild(this.CollisionPolygon2D);
+			this.CollisionPolygon2D.Owner = this.CollisionObject.Owner;
 		}
 		this.RefreshCollisionPolygons();
 		this.NotifyPropertyListChanged();
@@ -323,16 +328,9 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	private void RefreshCollisionPolygons()
 	{
-		if (!this.CollisionEnabled || this.CollisionObject == null)
+		if (!this.CollisionEnabled || this.CollisionPolygon2D == null)
 		{
 			return;
-		}
-
-		if (this.CollisionPolygon2D == null)
-		{
-			this.CollisionPolygon2D = new CollisionPolygon2D() { Name = nameof(Godot.CollisionPolygon2D) };
-			this.CollisionObject.AddChild(this.CollisionPolygon2D);
-			this.CollisionPolygon2D.Owner = this.CollisionObject.Owner;
 		}
 
 		// this.CollisionPolygon2D.GlobalPosition = this.GlobalPosition;
@@ -352,9 +350,10 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	private void RefreshEdges()
 	{
-		IEnumerator<Line2D> lines = this.GetChildren()
+		IEnumerator<(int index, Line2D line)> lineQueue = this.GetChildren()
 			.OfType<Line2D>()
 			.Where(line => line.IsInGroup(Platform2D.EdgeLineGroupName))
+			.Index()
 			.GetEnumerator();
 
 		foreach ((int index, Vector2[] vertexes) polygon in this.PolygonsVertexes.ToList().Index())
@@ -364,7 +363,7 @@ public partial class Platform2D : Polygon2D
 				EdgeSettings.FindSegmentsResult result = edgeInfo.settings.FindSegments(edges);
 				foreach ((int index, Vector2[] vertexes) segment in result.Segments.Index())
 				{
-					Line2D line = lines.MoveNext() ? lines.Current : new Line2D();
+					Line2D line = lineQueue.MoveNext() ? lineQueue.Current.line : new Line2D();
 					// Must assign Points before calling EdgeSettings.ConfigureLine() because that method reads and
 					// updates the line's points.
 					line.Points = segment.vertexes;
@@ -376,20 +375,17 @@ public partial class Platform2D : Polygon2D
 					{
 						this.AddChild(line);
 					}
-					this.MoveChild(line, 0);
+					this.MoveChild(line, lineQueue.Current.index);
 					this.RefreshEdgeSprites(edgeInfo.settings, line);
 				}
 			}
 		}
 
 		// Clean up unused edge lines
-		if (Engine.IsEditorHint())
+		while (lineQueue.MoveNext())
 		{
-			while (lines.MoveNext()) lines.Current.QueueFree();
-		}
-		else
-		{
-			while (lines.MoveNext()) lines.Current.Visible = false;
+			if (Engine.IsEditorHint()) lineQueue.Current.line.QueueFree();
+			else lineQueue.Current.line.Visible = false;
 		}
 	}
 
