@@ -177,10 +177,14 @@ public partial class Platform2D : Polygon2D
 		this.Refresh();
 	}
 
-	// public override void _Process(double delta)
-	// {
-	// 	base._Process(delta);
-	// }
+	public override void _Process(double delta)
+	{
+		base._Process(delta);
+		if (Engine.IsEditorHint())
+		{
+			this.CheckForChanges();
+		}
+	}
 
 	// public override void _PhysicsProcess(double delta)
 	// {
@@ -355,8 +359,10 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	private void RefreshEdges()
 	{
-		IEnumerator<Line2D> lines = this.GetChildren().OfType<Line2D>().GetEnumerator();
-		HashSet<Line2D> usedLines = new();
+		IEnumerator<Line2D> lines = this.GetChildren()
+			.OfType<Line2D>()
+			.Where(line => line.IsInGroup(Platform2D.EdgeLineGroupName))
+			.GetEnumerator();
 
 		foreach ((int index, Vector2[] vertexes) polygon in this.PolygonsVertexes.ToList().Index())
 		{
@@ -372,7 +378,7 @@ public partial class Platform2D : Polygon2D
 					edgeInfo.settings.Apply(line);
 					line.Closed = result.Closed;
 					line.Owner = this.ShowChildrenInSceneTree ? this.Owner : null;
-					usedLines.Add(line);
+					line.AddToGroup(Platform2D.EdgeLineGroupName);
 
 					if (line.GetParent() != this)
 					{
@@ -385,17 +391,14 @@ public partial class Platform2D : Polygon2D
 		}
 
 		// Clean up unused edge lines
-		this.GetChildren()
-			.OfType<Line2D>()
-			.Where(line => line.IsInGroup(Platform2D.EdgeLineGroupName))
-			.ToHashSet()
-			.Except(usedLines)
-			.ToList()
-			.ForEach(
-				Engine.IsEditorHint() /*&& this.UnusedEdgeLinesStrategy == UnusedEdgesStrategyEnum.Delete*/
-					? line => line.QueueFree()
-					: line => line.Visible = false
-			);
+		if (Engine.IsEditorHint())
+		{
+			while (lines.MoveNext()) lines.Current.QueueFree();
+		}
+		else
+		{
+			while (lines.MoveNext()) lines.Current.Visible = false;
+		}
 	}
 
 	/// <summary>
@@ -459,5 +462,18 @@ public partial class Platform2D : Polygon2D
 		{
 			yield return new PolygonEdge(vertex, vertexes[(i + 1) % vertexes.Length]);
 		}
+	}
+
+	/// <summary>
+	/// Checks for changes in the polygon data and refreshes if any are detected.
+	/// </summary>
+	private void CheckForChanges()
+	{
+		float checksum = Utils.HashF(this.Polygon, this.InvertEnabled, this.InvertBorder);
+		if (this.LastCheckSum != checksum)
+		{
+			this.Refresh();
+		}
+		this.LastCheckSum = checksum;
 	}
 }
