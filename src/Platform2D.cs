@@ -61,7 +61,7 @@ public partial class Platform2D : Polygon2D
 	[ExportToolButton("Create StaticBody2D")] Callable ToolButtonCreateCollider => Callable.From(this.OnCreateColliderPressed);
 
 	[ExportGroup("Additional Options")]
-	[Export] public bool ShowHiddenChildren
+	[Export] public bool ShowChildrenInSceneTree
 		{ get => field; set { field = value; this.Refresh(); } } = false;
 
 	// -----------------------------------------------------------------------------------------------------------------
@@ -371,7 +371,7 @@ public partial class Platform2D : Polygon2D
 					line.Points = segment.vertexes;
 					edgeInfo.settings.Apply(line);
 					line.Closed = result.Closed;
-					line.Owner = this.ShowHiddenChildren ? this.Owner : null;
+					line.Owner = this.ShowChildrenInSceneTree ? this.Owner : null;
 					usedLines.Add(line);
 
 					if (line.GetParent() != this)
@@ -433,7 +433,7 @@ public partial class Platform2D : Polygon2D
 				line.AddChild(sprite);
 			}
 			sprite.AddToGroup(Platform2D.CornerSpriteGroupName);
-			sprite.Owner = this.ShowHiddenChildren ? this.Owner : null;
+			sprite.Owner = this.ShowChildrenInSceneTree ? this.Owner : null;
 		}
 
 		while (cornerSprites.MoveNext())
