@@ -8,10 +8,6 @@ namespace Raele.Platform2D;
 
 // TODO Add option to randomly place selected texture sprites on the polygon (on either edge or fill) — for decorations
 // or variation.
-// TODO Limit polygons to only a single one per Platform2D node to prevent confusion and bad practices (e.g. updating
-// one polygon refreshes all of them; or adding a new vertex that does not belong to any polygon; or one "polygon" node
-// containing multiple polygons). To do so, hide the Polygons and InternalVertexColor fields in the editor, clear these
-// fields on refresh, and add a warning if the Platform2D node has multiple Path2D children.
 // TODO Add option to rotate edge line texture and sprite textures without having to use shaders.
 // TODO Account for whether the polygon is inverted for collision shape generation and assumptions about angle concavity
 // for corner sprites.
@@ -52,8 +48,8 @@ public partial class Platform2D : Polygon2D
 			this.Refresh();
 		}
 	} = null;
-	[Export] public bool MimicChildPaths
-		{ get => field; set { field = value; this.Refresh(); } } = true;
+	[Export] public bool MimicChildPath
+		{ get => field; set { field = value; this.Refresh(); } } = false;
 
 	[ExportGroup("Has Collision")]
 	[Export(PropertyHint.GroupEnable)] public bool CollisionEnabled
@@ -72,57 +68,56 @@ public partial class Platform2D : Polygon2D
 	// FIELDS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	/// <summary>
-	/// Cache of child <see cref="Path2D"/> nodes.
-	/// </summary>
-	private List<Path2D> ChildPathsCache { get; init; } = new();
+	private Path2D? ChildPath2D => this.GetChildren().OfType<Path2D>().FirstOrDefault();
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// PROPERTIES
 	// -----------------------------------------------------------------------------------------------------------------
 
-	/// <summary>
-	/// Alias for <see cref="Polygon2D.Polygon"/>. Contains a list of all vertexes that are part of any of the polygons
-	/// in this platform.
-	/// </summary>
-	public Vector2[] AllVertexes
+	public Vector2[] Vertexes
 	{
 		get => this.Polygon ?? [];
 		set => this.Polygon = value;
 	}
-	/// <summary>
-	/// An array of polygons, where each polygon is an array of the vertexes that compose the polygon. This is a "sugar
-	/// property" to ease reading and writing polygon data. (<see cref="Polygon2D.Polygon"/> and
-	/// <see cref="Polygon2D.Polygons"/>)
-	/// </summary>
-	public Vector2[][] PolygonsVertexes
-	{
-		get => this.Polygons.Count > 0
-			? this.Polygons.Select(vertexes => vertexes.AsInt32Array().Select(index => this.AllVertexes[index]).ToArray()).ToArray()
-			: [this.AllVertexes];
-		set
-		{
-			this.AllVertexes = value.SelectMany(vertexes => vertexes).ToArray();
-			this.Polygons = new(
-				value.Select(
-					(polygon, i) => Variant.From(
-						polygon.Select(
-								(_, j) => value.Take(i)
-									.Select(vertexes => vertexes.Length)
-									.Sum()
-									+ j
-							)
-							.ToArray()
-					)
-				)
-			);
-		}
-	}
-	public int PolygonCount => this.Polygons.Count > 0 ? this.Polygons.Count : this.AllVertexes.Length > 0 ? 1 : 0;
+	// /// <summary>
+	// /// Alias for <see cref="Polygon2D.Polygon"/>. Contains a list of all vertexes that are part of any of the polygons
+	// /// in this platform.
+	// /// </summary>
+	// public Vector2[] AllVertexes
+	// {
+	// 	get => this.Polygon ?? [];
+	// 	set => this.Polygon = value;
+	// }
+	// /// <summary>
+	// /// An array of polygons, where each polygon is an array of the vertexes that compose the polygon. This is a "sugar
+	// /// property" to ease reading and writing polygon data. (<see cref="Polygon2D.Polygon"/> and
+	// /// <see cref="Polygon2D.Polygons"/>)
+	// /// </summary>
+	// public Vector2[][] PolygonsVertexes
+	// {
+	// 	get => this.Polygons.Count > 0
+	// 		? this.Polygons.Select(vertexes => vertexes.AsInt32Array().Select(index => this.AllVertexes[index]).ToArray()).ToArray()
+	// 		: [this.AllVertexes];
+	// 	set
+	// 	{
+	// 		this.AllVertexes = value.SelectMany(vertexes => vertexes).ToArray();
+	// 		this.Polygons = new(
+	// 			value.Select(
+	// 				(polygon, i) => Variant.From(
+	// 					polygon.Select(
+	// 							(_, j) => value.Take(i)
+	// 								.Select(vertexes => vertexes.Length)
+	// 								.Sum()
+	// 								+ j
+	// 						)
+	// 						.ToArray()
+	// 				)
+	// 			)
+	// 		);
+	// 	}
+	// }
 	public CollisionObject2D? CollisionObject
-	{
-		get => this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
-	}
+		=> this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
 	private float LastCheckSum = float.NaN;
 	private IEnumerable<EdgeSettings> EdgesSettings => this.Profile?.EdgeTypes?.OfType<EdgeSettings>() ?? [];
 
@@ -150,14 +145,14 @@ public partial class Platform2D : Polygon2D
 	{
 		base._EnterTree();
 		this.ChildEnteredTree += this.OnChildEnteredTree;
-		this.ChildExitingTree += this.OnChildExitingTree;
+		// this.ChildExitingTree += this.OnChildExitingTree;
 	}
 
 	public override void _ExitTree()
 	{
 		base._ExitTree();
 		this.ChildEnteredTree -= this.OnChildEnteredTree;
-		this.ChildExitingTree -= this.OnChildExitingTree;
+		// this.ChildExitingTree -= this.OnChildExitingTree;
 	}
 
 	public override void _Ready()
@@ -208,6 +203,16 @@ public partial class Platform2D : Polygon2D
 	public override string[] _GetConfigurationWarnings()
 		=> new List<string>()
 			.Concat(this.Profile == null ? ["No profile assigned. Please assign a new profile resource in the inspector."] : [])
+			.Concat(
+				this.MimicChildPath
+					? this.GetChildren().OfType<Path2D>().Count() switch
+					{
+						0 => [$"Option {nameof(MimicChildPath)} is enabled, but there is no child Path2D node. Please add one."],
+						1 => [],
+						_ => ["Multiple child Path2D nodes found. There should be only a single one. Paths after the first will be ignored."],
+					}
+					: []
+			)
 			.ToArray();
 
 	// -----------------------------------------------------------------------------------------------------------------
@@ -236,21 +241,12 @@ public partial class Platform2D : Polygon2D
 	{
 		if (child is Path2D path && path.GetParent() == this)
 		{
-			this.ChildPathsCache.Add(path);
 			if (Engine.IsEditorHint())
 			{
 				Path2DObserver observer = new();
 				observer.PathChanged += this.OnPathChanged;
 				path.AddChild(observer);
 			}
-		}
-	}
-
-	private void OnChildExitingTree(Node child)
-	{
-		if (child is Path2D path)
-		{
-			this.ChildPathsCache.Remove(path);
 		}
 	}
 
@@ -267,7 +263,7 @@ public partial class Platform2D : Polygon2D
 	public void Refresh()
 	{
 		this.RefreshFillTexture();
-		this.RefreshPolygonsVertexes();
+		this.RefreshMimicPath2DVertexes();
 		this.RefreshEdges();
 		this.RefreshCollisionPolygons();
 		this.Polygons = default;
@@ -279,20 +275,16 @@ public partial class Platform2D : Polygon2D
 	/// <summary>
 	/// Sets this Polygon2D's vertex positions based on the child Path2D nodes, if any.
 	/// </summary>
-	private void RefreshPolygonsVertexes()
+	private void RefreshMimicPath2DVertexes()
 	{
-		if (this.ChildPathsCache.Count() == 0)
+		if (!this.MimicChildPath || this.ChildPath2D == null)
 		{
 			return;
 		}
-		this.PolygonsVertexes = this.ChildPathsCache.Select(path =>
-			{
-				Vector2[] vertexes = path.Curve.GetBakedPoints()
-					.Select((vertex, index) => path.Transform * vertex)
-					.ToArray();
-				return vertexes.Where((vertex, i) => !IsOmittable(vertexes, i)).ToArray();
-			})
+		Vector2[] vertexes = this.ChildPath2D.Curve.GetBakedPoints()
+			.Select((vertex, index) => this.ChildPath2D.Transform * vertex)
 			.ToArray();
+		this.Vertexes = vertexes.Where((vertex, i) => !IsOmittable(vertexes, i)).ToArray();
 	}
 
 	/// <summary>
@@ -337,7 +329,7 @@ public partial class Platform2D : Polygon2D
 		// this.CollisionPolygon2D.GlobalRotation = this.GlobalRotation;
 		// this.CollisionPolygon2D.GlobalScale = this.GlobalScale;
 		// this.CollisionPolygon2D.GlobalSkew = this.GlobalSkew;
-		this.CollisionPolygon2D.Polygon = this.PolygonsVertexes.Length > 0 ? this.PolygonsVertexes[0] : [];
+		this.CollisionPolygon2D.Polygon = this.Vertexes;
 		this.CollisionPolygon2D.BuildMode = this.InvertEnabled
 			? CollisionPolygon2D.BuildModeEnum.Segments
 			: CollisionPolygon2D.BuildModeEnum.Solids;
@@ -356,28 +348,25 @@ public partial class Platform2D : Polygon2D
 			.Index()
 			.GetEnumerator();
 
-		foreach ((int index, Vector2[] vertexes) polygon in this.PolygonsVertexes.ToList().Index())
-		{
-			PolygonEdge[] edges = this.GetPolygonEdges(polygon.index).ToArray();
-			foreach ((int index, EdgeSettings settings) edgeInfo in this.EdgesSettings.Where(settings => !settings.Disabled).Index()) {
-				EdgeSettings.FindSegmentsResult result = edgeInfo.settings.FindSegments(edges);
-				foreach ((int index, Vector2[] vertexes) segment in result.Segments.Index())
+		PolygonEdge[] edges = this.GetEdges().ToArray();
+		foreach ((int index, EdgeSettings settings) edgeInfo in this.EdgesSettings.Where(settings => !settings.Disabled).Index()) {
+			EdgeSettings.FindSegmentsResult result = edgeInfo.settings.FindSegments(edges);
+			foreach ((int index, Vector2[] vertexes) segment in result.Segments.Index())
+			{
+				Line2D line = lineQueue.MoveNext() ? lineQueue.Current.line : new Line2D();
+				// Must assign Points before calling EdgeSettings.ConfigureLine() because that method reads and
+				// updates the line's points.
+				line.Points = segment.vertexes;
+				edgeInfo.settings.Apply(line);
+				line.Closed = result.Closed;
+				line.Owner = this.ShowChildrenInSceneTree ? this.Owner : null;
+				line.AddToGroup(Platform2D.EdgeLineGroupName);
+				if (line.GetParent() != this)
 				{
-					Line2D line = lineQueue.MoveNext() ? lineQueue.Current.line : new Line2D();
-					// Must assign Points before calling EdgeSettings.ConfigureLine() because that method reads and
-					// updates the line's points.
-					line.Points = segment.vertexes;
-					edgeInfo.settings.Apply(line);
-					line.Closed = result.Closed;
-					line.Owner = this.ShowChildrenInSceneTree ? this.Owner : null;
-					line.AddToGroup(Platform2D.EdgeLineGroupName);
-					if (line.GetParent() != this)
-					{
-						this.AddChild(line);
-					}
-					this.MoveChild(line, lineQueue.Current.index);
-					this.RefreshEdgeSprites(edgeInfo.settings, line);
+					this.AddChild(line);
 				}
+				this.MoveChild(line, lineQueue.Current.index);
+				this.RefreshEdgeSprites(edgeInfo.settings, line);
 			}
 		}
 
@@ -446,65 +435,13 @@ public partial class Platform2D : Polygon2D
 	}
 
 	/// <summary>
-	/// Updates corner decorations on the edges, if any.
-	/// </summary>
-	private void RefreshEdgeCornerSprites(EdgeSettings edgeSettings, Line2D line)
-	{
-		if (this.Profile == null)
-		{
-			return;
-		}
-
-		IEnumerator<Sprite2D> cornerSprites = line.GetChildren().OfType<Sprite2D>()
-			.Where(sprite => sprite.IsInGroup(Platform2D.LineSpritesGroupName))
-			.GetEnumerator();
-
-		foreach (
-			(int index, Vector2 position) point
-			in line.Points.Index()
-		)
-		{
-			CornerSpriteSettings? settings = edgeSettings.CornerSprites
-				.Where(settings => settings.Test(line.Points, point.index))
-				.OrderByDescending(settings => settings.MinCornerAngle)
-				.FirstOrDefault();
-			if (settings == null)
-			{
-				continue;
-			}
-			Sprite2D sprite = cornerSprites.MoveNext() ? cornerSprites.Current : new Sprite2D();
-			sprite.Position = point.position;
-			settings.Apply(sprite);
-			if (sprite != cornerSprites.Current)
-			{
-				line.AddChild(sprite);
-			}
-			sprite.AddToGroup(Platform2D.LineSpritesGroupName);
-			sprite.Owner = this.ShowChildrenInSceneTree ? this.Owner : null;
-		}
-
-		while (cornerSprites.MoveNext())
-		{
-			if (Engine.IsEditorHint())
-			{
-				cornerSprites.Current.QueueFree();
-			}
-			else
-			{
-				cornerSprites.Current.Visible = false;
-			}
-		}
-	}
-
-	/// <summary>
 	/// Yields all edges of the polygon at the given index. (one Polygon2D node can contain multiple polygons)
 	/// </summary>
-	private IEnumerable<PolygonEdge> GetPolygonEdges(int polygonIndex)
+	private IEnumerable<PolygonEdge> GetEdges()
 	{
-		Vector2[] vertexes = this.PolygonsVertexes[polygonIndex];
-		foreach ((int i, Vector2 vertex) in vertexes.Index())
+		foreach ((int i, Vector2 vertex) in this.Vertexes.Index())
 		{
-			yield return new PolygonEdge(vertex, vertexes[(i + 1) % vertexes.Length]);
+			yield return new PolygonEdge(vertex, this.Vertexes[(i + 1) % this.Vertexes.Length]);
 		}
 	}
 
@@ -513,7 +450,7 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	private void CheckForChanges()
 	{
-		float checksum = Utils.HashF(this.Polygon, this.InvertEnabled, this.InvertBorder);
+		float checksum = Utils.HashF(this.Vertexes, this.InvertEnabled, this.InvertBorder);
 		if (this.LastCheckSum != checksum)
 		{
 			this.Refresh();
