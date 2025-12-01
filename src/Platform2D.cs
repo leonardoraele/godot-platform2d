@@ -12,6 +12,13 @@ namespace Raele.Platform2D;
 // one polygon refreshes all of them; or adding a new vertex that does not belong to any polygon; or one "polygon" node
 // containing multiple polygons). To do so, hide the Polygons and InternalVertexColor fields in the editor, clear these
 // fields on refresh, and add a warning if the Platform2D node has multiple Path2D children.
+// TODO Add option to rotate edge line texture and sprite textures without having to use shaders.
+// TODO Account for whether the polygon is inverted for collision shape generation and assumptions about angle concavity
+// for corner sprites.
+// TODO Consider removing inherited skeleton-based deformation editor fields from Polygon2D.
+// TODO Remove Polygon2D.Offset field from the editor and add instant actions to reposition the polygon origin, such as
+// "move origin to center" and "move origin to bottom". To do that, translate the node's position so that the origin is
+// at the desired location, then translate all vertexes in the opposite direction so that they remain in place.
 
 [Tool]
 public partial class Platform2D : Polygon2D

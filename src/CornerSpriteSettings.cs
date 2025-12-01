@@ -20,8 +20,8 @@ public partial class CornerSpriteSettings : SpriteSettings, AngleRangePreview.IH
 		{ get => field; set { field = value; this.EmitChanged(); } } = CornerTypeEnum.Convex;
 	[Export(PropertyHint.Range, "0,180,5,radians_as_degrees")] public float MinCornerAngle
 		{ get => field; set { field = value; this.EmitChanged(); } } = Mathf.DegToRad(30);
-	[Export] public bool DistortSprite // TODO Not implemented yet.
-		{ get => field; set { field = value; this.EmitChanged(); } } = true;
+	[Export] public bool EnableDeformation // TODO Not implemented yet.
+		{ get => field; set { field = value; this.EmitChanged(); } } = false;
 	// TODO // FIXME This option is temporarily removed because turning it off causes index out of bounds error in the
 	// test methods.
 	// [Export] public bool IgnoreEdgeCaps
