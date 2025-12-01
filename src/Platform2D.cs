@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO.Hashing;
 using System.Linq;
 using Godot;
 using GodotDictionary = Godot.Collections.Dictionary;
@@ -21,7 +20,7 @@ public partial class Platform2D : Polygon2D
 	// STATICS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	public static readonly string EdgeLineMetaKey = $"{nameof(Platform2D)}__{nameof(EdgeLineMetaKey)}";
+	public static readonly string EdgeLineGroupName = $"{nameof(Platform2D)}__{nameof(EdgeLineGroupName)}";
 	public static readonly string CornerSpriteGroupName = $"{nameof(Platform2D)}__{nameof(CornerSpriteGroupName)}";
 
 	// -----------------------------------------------------------------------------------------------------------------
@@ -343,14 +342,8 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	private void RefreshEdges()
 	{
-		HashSet<Line2D> lineSet = new();
-		XxHash3 hasher = new();
-
-		// TODO Replace the hash approach with the same one used in RefreshEdgeCorners
-		string Hash(params int[] values) {
-			hasher.Append(values.SelectMany(BitConverter.GetBytes).ToArray());
-			return $"{BitConverter.ToUInt16(hasher.GetHashAndReset()):X4}";
-		}
+		IEnumerator<Line2D> lines = this.GetChildren().OfType<Line2D>().GetEnumerator();
+		HashSet<Line2D> usedLines = new();
 
 		foreach ((int index, Vector2[] vertexes) polygon in this.PolygonsVertexes.ToList().Index())
 		{
@@ -359,15 +352,19 @@ public partial class Platform2D : Polygon2D
 				EdgeSettings.FindSegmentsResult result = edgeInfo.settings.FindSegments(edges);
 				foreach ((int index, Vector2[] vertexes) segment in result.Segments.Index())
 				{
-					string hash = Hash(polygon.index, edgeInfo.index, segment.index);
-					Line2D line = this.GetEdgeLine(hash) ?? this.CreateEdgeLine(hash);
+					Line2D line = lines.MoveNext() ? lines.Current : new Line2D();
 					// Must assign Points before calling EdgeSettings.ConfigureLine() because that method reads and
 					// updates the line's points.
 					line.Points = segment.vertexes;
 					edgeInfo.settings.Apply(line);
 					line.Closed = result.Closed;
-					lineSet.Add(line);
 					line.Owner = this.ShowHiddenChildren ? this.Owner : null;
+					usedLines.Add(line);
+
+					if (line.GetParent() != this)
+					{
+						this.AddChild(line);
+					}
 
 					this.RefreshEdgeCorners(edgeInfo.settings, line);
 				}
@@ -377,9 +374,9 @@ public partial class Platform2D : Polygon2D
 		// Clean up unused edge lines
 		this.GetChildren()
 			.OfType<Line2D>()
-			.Where(line => line.HasMeta(Platform2D.EdgeLineMetaKey))
+			.Where(line => line.IsInGroup(Platform2D.EdgeLineGroupName))
 			.ToHashSet()
-			.Except(lineSet)
+			.Except(usedLines)
 			.ToList()
 			.ForEach(
 				Engine.IsEditorHint() /*&& this.UnusedEdgeLinesStrategy == UnusedEdgesStrategyEnum.Delete*/
@@ -450,38 +447,4 @@ public partial class Platform2D : Polygon2D
 			yield return new PolygonEdge(vertex, vertexes[(i + 1) % vertexes.Length]);
 		}
 	}
-
-	/// <summary>
-	/// Gets the child Line2D node that corresponds to the given edge ID, or null if not found.
-	/// </summary>
-	private Line2D? GetEdgeLine(string id) => this.GetChildren()
-		.OfType<Line2D>()
-		.FirstOrDefault(line => this.GetLineId(line) == id);
-
-	/// <summary>
-	/// Creates a new Line2D node with the given edge ID. The node is added as a child of this Platform2D and its
-	/// owner is set to match this Platform2D's owner.
-	/// </summary>
-	private Line2D CreateEdgeLine(string id)
-	{
-		Line2D line = new()
-		{
-			Name = $"Edge #{id} [{nameof(Line2D)}]",
-		};
-		this.SetLineId(line, id);
-		this.AddChild(line);
-		// line.Owner = this.Owner;
-		return line;
-	}
-
-	/// <summary>
-	/// Assigns an ID to the given Line2D node as metadata.
-	/// </summary>
-	private void SetLineId(Line2D line, string id) => line.SetMeta(Platform2D.EdgeLineMetaKey, id);
-
-	/// <summary>
-	/// Retrieves the ID that was assigned to a Line2D with the <see cref="SetLineId"/> method, or an empty string if
-	/// it's not found.
-	/// </summary>
-	private string GetLineId(Line2D line) => line.GetMeta(Platform2D.EdgeLineMetaKey, "").AsString();
 }
