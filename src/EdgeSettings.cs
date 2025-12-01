@@ -57,8 +57,10 @@ public partial class EdgeSettings : Resource, AngleRangePreview.IHasAngleRange
 		{ get => field; set { field = value; this.EmitChanged(); } } = [];
 
 	[ExportGroup("Cap Sprites")]
-	[Export] public Texture2D? BeginCapSprite;
-	[Export] public Texture2D? EndCapSprite;
+	[Export] public SpriteSettings? BeginCapSprite
+		{ get => field; set { field = value; field?.Changed += this.EmitChanged; this.EmitChanged(); } } = null;
+	[Export] public SpriteSettings? EndCapSprite
+		{ get => field; set { field = value; field?.Changed += this.EmitChanged; this.EmitChanged(); } } = null;
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// FIELDS

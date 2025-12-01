@@ -2,8 +2,8 @@ using Godot;
 
 namespace Raele.Platform2D;
 
-[Tool]
-public abstract partial class SpriteSettings : Resource
+[Tool][GlobalClass]
+public partial class SpriteSettings : Resource
 {
 	// -----------------------------------------------------------------------------------------------------------------
 	// STATICS
@@ -18,19 +18,25 @@ public abstract partial class SpriteSettings : Resource
 	// TODO Make this field an array and a boolean to determine whether multiple overlaping sprites with each texture
 	// should be created, or only a single sprite with a random sample of this list of textures.
 	[Export] public Texture2D? Texture
-		{ get => field; set { field = value; this.EmitChanged(); } } = null;
+		{ get => field; set { field = value; this.EmitChanged(); } }
+		= null;
 
 	[ExportGroup("Texture Options")]
 	[Export(PropertyHint.None, "suffix:px")] public Vector2 Offset
-		{ get => field; set { field = value; this.EmitChanged(); } } = Vector2.Zero;
+		{ get => field; set { field = value; this.EmitChanged(); } }
+		= Vector2.Zero;
 	[Export(PropertyHint.Link)] public Vector2 Scale
-		{ get => field; set { field = value; this.EmitChanged(); } } = Vector2.One;
-	[Export(PropertyHint.Range, "0,2,suffix:π")] public float Rotation
-		{ get => field; set { field = value; this.EmitChanged(); } } = 0f;
+		{ get => field; set { field = value; this.EmitChanged(); } }
+		= Vector2.One;
+	[Export(PropertyHint.Range, "0,360,radians_as_degrees")] public float Rotation
+		{ get => field; set { field = value; this.EmitChanged(); } }
+		= 0f;
 	[Export] public bool FlipH
-		{ get => field; set { field = value; this.EmitChanged(); } } = false;
+		{ get => field; set { field = value; this.EmitChanged(); } }
+		= false;
 	[Export] public bool FlipV
-		{ get => field; set { field = value; this.EmitChanged(); } } = false;
+		{ get => field; set { field = value; this.EmitChanged(); } }
+		= false;
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// FIELDS
@@ -96,9 +102,10 @@ public abstract partial class SpriteSettings : Resource
 
 	public virtual void Apply(Sprite2D sprite)
 	{
+		sprite.Position += this.Offset;
 		sprite.Texture = this.Texture;
 		sprite.Centered = true;
-		sprite.Offset = this.Offset;
+		sprite.Offset = Vector2.Zero;
 		sprite.Scale = this.Scale;
 		sprite.Rotation = this.Rotation;
 		sprite.FlipH = this.FlipH;

@@ -29,7 +29,7 @@ public partial class Platform2D : Polygon2D
 	// -----------------------------------------------------------------------------------------------------------------
 
 	public static readonly string EdgeLineGroupName = $"{nameof(Platform2D)}__{nameof(EdgeLineGroupName)}";
-	public static readonly string CornerSpriteGroupName = $"{nameof(Platform2D)}__{nameof(CornerSpriteGroupName)}";
+	public static readonly string LineSpritesGroupName = $"{nameof(Platform2D)}__{nameof(LineSpritesGroupName)}";
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// EXPORTS
@@ -377,7 +377,7 @@ public partial class Platform2D : Polygon2D
 						this.AddChild(line);
 					}
 					this.MoveChild(line, 0);
-					this.RefreshEdgeCorners(edgeInfo.settings, line);
+					this.RefreshEdgeSprites(edgeInfo.settings, line);
 				}
 			}
 		}
@@ -393,10 +393,66 @@ public partial class Platform2D : Polygon2D
 		}
 	}
 
+	private void RefreshEdgeSprites(EdgeSettings edgeSettings, Line2D line)
+	{
+		IEnumerator<Sprite2D> lineSprites = line.GetChildren().OfType<Sprite2D>()
+			.Where(sprite => sprite.IsInGroup(Platform2D.LineSpritesGroupName))
+			.GetEnumerator();
+
+		// Begin cap sprite
+		if (edgeSettings.BeginCapSprite != null)
+		{
+			Sprite2D sprite = lineSprites.MoveNext() ? lineSprites.Current : this.CreateLineSprite(line);
+			sprite.Position = line.Points[0];
+			edgeSettings.BeginCapSprite.Apply(sprite);
+		}
+
+		// Corner sprites
+		foreach ((int index, Vector2 position) point in line.Points.Index())
+		{
+			CornerSpriteSettings? cornerSettings = edgeSettings.CornerSprites
+				.Where(settings => settings.Test(line.Points, point.index))
+				.OrderByDescending(settings => settings.MinCornerAngle)
+				.FirstOrDefault();
+
+			if (cornerSettings == null)
+			{
+				continue;
+			}
+
+			Sprite2D sprite = lineSprites.MoveNext() ? lineSprites.Current : this.CreateLineSprite(line);
+			sprite.Position = point.position;
+			cornerSettings.Apply(sprite);
+		}
+
+		// End cap sprite
+		if (edgeSettings.EndCapSprite != null)
+		{
+			Sprite2D sprite = lineSprites.MoveNext() ? lineSprites.Current : this.CreateLineSprite(line);
+			sprite.Position = line.Points[^1];
+			edgeSettings.EndCapSprite.Apply(sprite);
+		}
+
+		while (lineSprites.MoveNext())
+		{
+			if (Engine.IsEditorHint()) lineSprites.Current.QueueFree();
+			else lineSprites.Current.Visible = false;
+		}
+	}
+
+	private Sprite2D CreateLineSprite(Line2D line)
+	{
+		Sprite2D sprite = new();
+		line.AddChild(sprite);
+		sprite.AddToGroup(Platform2D.LineSpritesGroupName);
+		sprite.Owner = this.ShowChildrenInSceneTree ? this.Owner : null;
+		return sprite;
+	}
+
 	/// <summary>
 	/// Updates corner decorations on the edges, if any.
 	/// </summary>
-	private void RefreshEdgeCorners(EdgeSettings edgeSettings, Line2D line)
+	private void RefreshEdgeCornerSprites(EdgeSettings edgeSettings, Line2D line)
 	{
 		if (this.Profile == null)
 		{
@@ -404,7 +460,7 @@ public partial class Platform2D : Polygon2D
 		}
 
 		IEnumerator<Sprite2D> cornerSprites = line.GetChildren().OfType<Sprite2D>()
-			.Where(sprite => sprite.IsInGroup(Platform2D.CornerSpriteGroupName))
+			.Where(sprite => sprite.IsInGroup(Platform2D.LineSpritesGroupName))
 			.GetEnumerator();
 
 		foreach (
@@ -427,7 +483,7 @@ public partial class Platform2D : Polygon2D
 			{
 				line.AddChild(sprite);
 			}
-			sprite.AddToGroup(Platform2D.CornerSpriteGroupName);
+			sprite.AddToGroup(Platform2D.LineSpritesGroupName);
 			sprite.Owner = this.ShowChildrenInSceneTree ? this.Owner : null;
 		}
 
