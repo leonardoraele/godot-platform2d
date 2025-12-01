@@ -19,6 +19,9 @@ public partial class EdgeSettings : Resource, AngleRangePreview.IHasAngleRange
 	// -----------------------------------------------------------------------------------------------------------------
 
 	[Export] public string Name = Guid.NewGuid().ToString().Substring(0, 4).ToUpper();
+	// TODO If this field is false, we only create straight Line2D segments so that there are no deformations.
+	// [Export] public bool WeldCorners
+	// 	{ get => field; set { field = value; this.EmitChanged(); } } = true;
 
 	// [Export] public PackedScene? Template;
 	[ExportCategory("Edge Location")]

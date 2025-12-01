@@ -52,15 +52,19 @@ public partial class Platform2D : Polygon2D
 			this.Refresh();
 		}
 	} = null;
-
-	[ExportGroup("Automation Options")]
 	[Export] public bool MimicChildPaths
 		{ get => field; set { field = value; this.Refresh(); } } = true;
-	[Export] public bool AutoUpdateChildCollider
-		{ get => field; set { field = value; this.RefreshCollisionPolygons(); } } = true;
-	[ExportToolButton("Create StaticBody2D")] Callable ToolButtonCreateCollider => Callable.From(this.OnCreateColliderPressed);
 
-	[ExportGroup("Additional Options")]
+	[ExportGroup("Has Collision")]
+	[Export(PropertyHint.GroupEnable)] public bool CollisionEnabled
+		{ get => field; set { field = value; this.RefreshCollisionPolygons(); this.NotifyPropertyListChanged(); } }
+		= false;
+	[ExportToolButton("Create StaticBody2D")] Callable ToolButtonCreateCollider
+		=> Callable.From(this.OnCreateColliderPressed);
+	[Export] public CollisionPolygon2D? CollisionPolygon2D
+		{ get => field; set { field = value; this.RefreshCollisionPolygons(); } } = null;
+
+	[ExportGroup("Debug Options")]
 	[Export] public bool ShowChildrenInSceneTree
 		{ get => field; set { field = value; this.Refresh(); } } = false;
 
@@ -115,21 +119,11 @@ public partial class Platform2D : Polygon2D
 		}
 	}
 	public int PolygonCount => this.Polygons.Count > 0 ? this.Polygons.Count : this.AllVertexes.Length > 0 ? 1 : 0;
-	public CollisionObject2D? Collider
+	public CollisionObject2D? CollisionObject
 	{
 		get => this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
-		set
-		{
-			if (value == null)
-			{
-				this.Collider?.QueueFree();
-				return;
-			}
-			this.AddChild(value);
-			value.Owner = this.Owner;
-		}
 	}
-	public IEnumerable<CollisionPolygon2D> CollisionPolygons => this.Collider?.GetChildren().OfType<CollisionPolygon2D>() ?? [];
+	// public IEnumerable<CollisionPolygon2D> CollisionPolygons => this.CollisionObject?.GetChildren().OfType<CollisionPolygon2D>() ?? [];
 	private float LastCheckSum = float.NaN;
 	private IEnumerable<EdgeSettings> EdgesSettings => this.Profile?.EdgeTypes.Where(setting => setting != null) ?? [];
 
@@ -205,7 +199,7 @@ public partial class Platform2D : Polygon2D
 				property["usage"] = Variant.From(PropertyUsageFlags.NoEditor);
 				break;
 			case nameof(this.ToolButtonCreateCollider):
-				property["usage"] = this.Collider == null
+				property["usage"] = this.CollisionObject == null
 					? Variant.From(PropertyUsageFlags.Default)
 					: Variant.From(PropertyUsageFlags.NoEditor);
 				break;
@@ -223,8 +217,14 @@ public partial class Platform2D : Polygon2D
 
 	private void OnCreateColliderPressed()
 	{
-		this.Collider ??= new StaticBody2D() { Name = nameof(StaticBody2D) };
+		if (this.CollisionObject == null)
+		{
+			StaticBody2D collider = new StaticBody2D() { Name = nameof(Godot.StaticBody2D) };
+			this.AddChild(collider);
+			collider.Owner = this.Owner;
+		}
 		this.RefreshCollisionPolygons();
+		this.NotifyPropertyListChanged();
 	}
 
 	private void OnChildEnteredTree(Node child)
@@ -265,11 +265,6 @@ public partial class Platform2D : Polygon2D
 		this.RefreshPolygonsVertexes();
 		this.RefreshEdges();
 		this.RefreshCollisionPolygons();
-		this.CollisionPolygons.ToList()
-			.ForEach(polygon => polygon.BuildMode = this.InvertEnabled
-				? CollisionPolygon2D.BuildModeEnum.Segments
-				: CollisionPolygon2D.BuildModeEnum.Solids
-			);
 		this.Polygons = default;
 		this.InternalVertexCount = default;
 	}
@@ -328,28 +323,26 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	private void RefreshCollisionPolygons()
 	{
-		if (!this.AutoUpdateChildCollider || this.Collider == null)
+		if (!this.CollisionEnabled || this.CollisionObject == null)
 		{
 			return;
 		}
 
-		// Add missing collision polygons
-		for (int i = 0; i < this.PolygonCount - this.CollisionPolygons.Count(); i++)
+		if (this.CollisionPolygon2D == null)
 		{
-			CollisionPolygon2D collisionPolygon = new CollisionPolygon2D() { Name = nameof(CollisionPolygon2D) };
-			this.Collider.AddChild(collisionPolygon);
-			collisionPolygon.Owner = this.Owner;
+			this.CollisionPolygon2D = new CollisionPolygon2D() { Name = nameof(Godot.CollisionPolygon2D) };
+			this.CollisionObject.AddChild(this.CollisionPolygon2D);
+			this.CollisionPolygon2D.Owner = this.CollisionObject.Owner;
 		}
 
-		// Remove extra collision polygons
-		this.CollisionPolygons.Skip(this.PolygonCount).ToList().ForEach(polygon => polygon.QueueFree());
-
-		// Update collision polygons
-		CollisionPolygon2D[] collisionPolygons = this.CollisionPolygons.ToArray();
-		for (int i = 0; i < collisionPolygons.Length; i++)
-		{
-			collisionPolygons[i].Polygon = this.PolygonsVertexes[i];
-		}
+		// this.CollisionPolygon2D.GlobalPosition = this.GlobalPosition;
+		// this.CollisionPolygon2D.GlobalRotation = this.GlobalRotation;
+		// this.CollisionPolygon2D.GlobalScale = this.GlobalScale;
+		// this.CollisionPolygon2D.GlobalSkew = this.GlobalSkew;
+		this.CollisionPolygon2D.Polygon = this.PolygonsVertexes.Length > 0 ? this.PolygonsVertexes[0] : [];
+		this.CollisionPolygon2D.BuildMode = this.InvertEnabled
+			? CollisionPolygon2D.BuildModeEnum.Segments
+			: CollisionPolygon2D.BuildModeEnum.Solids;
 	}
 
 	/// <summary>
@@ -379,12 +372,11 @@ public partial class Platform2D : Polygon2D
 					line.Closed = result.Closed;
 					line.Owner = this.ShowChildrenInSceneTree ? this.Owner : null;
 					line.AddToGroup(Platform2D.EdgeLineGroupName);
-
 					if (line.GetParent() != this)
 					{
 						this.AddChild(line);
 					}
-
+					this.MoveChild(line, 0);
 					this.RefreshEdgeCorners(edgeInfo.settings, line);
 				}
 			}

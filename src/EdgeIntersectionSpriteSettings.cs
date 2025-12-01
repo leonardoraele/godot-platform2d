@@ -136,7 +136,7 @@ public partial class EdgeIntersectionSpriteSettings : CornerSpriteSettings
 		{
 			property["usage"] = (long) PropertyUsageFlags.Editor; // Shown in the editor but not saved
 			property["hint_string"] = this.EdgeFlagNames.Select(tuple => $"{tuple.name}:{tuple.flag}")
-				.Aggregate((a, b) => $"{a},{b}");
+				.Aggregate("", (a, b) => $"{a},{b}");
 		}
 		else if (property["name"].AsString() == nameof(this.ApplicableEdgeNames))
 		{
