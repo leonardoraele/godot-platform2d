@@ -19,6 +19,7 @@ namespace Raele.Platform2D;
 // TODO Remove Polygon2D.Offset field from the editor and add instant actions to reposition the polygon origin, such as
 // "move origin to center" and "move origin to bottom". To do that, translate the node's position so that the origin is
 // at the desired location, then translate all vertexes in the opposite direction so that they remain in place.
+// TODO Consider how to handle "holes" in polygons (e.g. donut shapes).
 
 [Tool]
 public partial class Platform2D : Polygon2D
@@ -194,6 +195,9 @@ public partial class Platform2D : Polygon2D
 			case "texture_offset":
 			case "texture_scale":
 			case "texture_rotation":
+			case "offset":
+			case "polygons":
+			case "internal_vertex_count":
 				property["usage"] = Variant.From(PropertyUsageFlags.NoEditor);
 				break;
 			case nameof(this.ToolButtonCreateCollider):
@@ -262,6 +266,8 @@ public partial class Platform2D : Polygon2D
 				? CollisionPolygon2D.BuildModeEnum.Segments
 				: CollisionPolygon2D.BuildModeEnum.Solids
 			);
+		this.Polygons = default;
+		this.InternalVertexCount = default;
 	}
 
 	private void RefreshFillTexture() => this.Profile?.ConfigureTexture(this);
