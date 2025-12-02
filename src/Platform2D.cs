@@ -58,7 +58,11 @@ public partial class Platform2D : Polygon2D
 	[ExportToolButton("Create StaticBody2D")] Callable ToolButtonCreateCollider
 		=> Callable.From(this.OnCreateColliderPressed);
 	[Export] public CollisionPolygon2D? CollisionPolygon2D
-		{ get => field; set { field = value; this.RefreshCollisionPolygons(); } } = null;
+		{ get => field; set { field = value; this.RefreshCollisionPolygons(); } }
+		= null;
+	[Export] public float ColliderOffset
+		{ get => field; set { field = value; this.RefreshCollisionPolygons(); } }
+		= 0f;
 
 	[ExportGroup("Debug Options")]
 	[Export] public bool ShowChildrenInSceneTree
@@ -329,10 +333,25 @@ public partial class Platform2D : Polygon2D
 		// this.CollisionPolygon2D.GlobalRotation = this.GlobalRotation;
 		// this.CollisionPolygon2D.GlobalScale = this.GlobalScale;
 		// this.CollisionPolygon2D.GlobalSkew = this.GlobalSkew;
-		this.CollisionPolygon2D.Polygon = this.Vertexes;
+		this.CollisionPolygon2D.Polygon = Mathf.IsZeroApprox(this.ColliderOffset) || this.Vertexes.Length < 2
+			? this.Vertexes
+			: _ExpandShape().ToArray();
 		this.CollisionPolygon2D.BuildMode = this.InvertEnabled
 			? CollisionPolygon2D.BuildModeEnum.Segments
 			: CollisionPolygon2D.BuildModeEnum.Solids;
+
+		IEnumerable<Vector2> _ExpandShape()
+		{
+			for (int i = 0; i < this.Vertexes.Length; i++)
+			{
+				Vector2 curr = this.Vertexes[i];
+				Vector2 left = curr.DirectionTo(this.Vertexes[(i - 1 + this.Vertexes.Length) % this.Vertexes.Length]);
+				Vector2 right = curr.DirectionTo(this.Vertexes[(i + 1) % this.Vertexes.Length]);
+				int direction = Mathf.Sign(left.Cross(right));
+				Vector2 normal = direction == 0 ? right.Orthogonal() : (left + right).Normalized() * direction;
+				yield return curr + normal * this.ColliderOffset;
+			}
+		}
 	}
 
 	/// <summary>
