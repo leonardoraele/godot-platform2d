@@ -148,34 +148,38 @@ public partial class Platform2D : Polygon2D
 	public override void _EnterTree()
 	{
 		base._EnterTree();
-		this.ChildEnteredTree += this.OnChildEnteredTree;
-		// this.ChildExitingTree += this.OnChildExitingTree;
+		if (Engine.IsEditorHint())
+		{
+			this.ChildEnteredTree += this.OnChildEnteredTreeInEditor;
+			// this.ChildExitingTree += this.OnChildExitingTreeInEditor;
+		}
 	}
 
 	public override void _ExitTree()
 	{
 		base._ExitTree();
-		this.ChildEnteredTree -= this.OnChildEnteredTree;
-		// this.ChildExitingTree -= this.OnChildExitingTree;
+		if (Engine.IsEditorHint())
+		{
+			this.ChildEnteredTree -= this.OnChildEnteredTreeInEditor;
+			// this.ChildExitingTree -= this.OnChildExitingTreeInEditor;
+		}
 	}
 
 	public override void _Ready()
 	{
 		base._Ready();
-		// if (Engine.IsEditorHint())
-		// {
-		// 	this.Refresh();
-		// }
 		this.Refresh();
 	}
 
 	public override void _Process(double delta)
 	{
 		base._Process(delta);
-		if (Engine.IsEditorHint())
+		if (!Engine.IsEditorHint())
 		{
-			this.CheckForChanges();
+			this.SetProcess(false);
+			return;
 		}
+		this.CheckForChanges();
 	}
 
 	// public override void _PhysicsProcess(double delta)
@@ -241,16 +245,13 @@ public partial class Platform2D : Polygon2D
 		this.NotifyPropertyListChanged();
 	}
 
-	private void OnChildEnteredTree(Node child)
+	private void OnChildEnteredTreeInEditor(Node child)
 	{
 		if (child is Path2D path && path.GetParent() == this)
 		{
-			if (Engine.IsEditorHint())
-			{
-				Path2DObserver observer = new();
-				observer.PathChanged += this.OnPathChanged;
-				path.AddChild(observer);
-			}
+			Path2DObserver observer = new();
+			observer.PathChanged += this.OnPathChanged;
+			path.AddChild(observer);
 		}
 	}
 
