@@ -31,9 +31,6 @@ public partial class Platform2D : Polygon2D
 	// EXPORTS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	/// <summary>
-	/// Tool button to refresh the polygon vertexes from child Path2D nodes.
-	/// </summary>
 	[ExportToolButton("Manual Refresh")] Callable ToolButtonRefresh => Callable.From(this.Refresh);
 
 	[Export] public PlatformProfile? Profile
@@ -48,8 +45,8 @@ public partial class Platform2D : Polygon2D
 			this.Refresh();
 		}
 	} = null;
-	[Export] public bool MimicChildPath
-		{ get => field; set { field = value; this.Refresh(); } } = false;
+	[Export] public bool MimicParentPath
+		{ get => field; set { field = value; this.RefreshMimicPath2DVertexes(); } } = false;
 
 	[ExportGroup("Has Collision")]
 	[Export(PropertyHint.GroupEnable)] public bool CollisionEnabled
@@ -71,8 +68,6 @@ public partial class Platform2D : Polygon2D
 	// -----------------------------------------------------------------------------------------------------------------
 	// FIELDS
 	// -----------------------------------------------------------------------------------------------------------------
-
-	private Path2D? ChildPath2D => this.GetChildren().OfType<Path2D>().FirstOrDefault();
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// PROPERTIES
@@ -122,7 +117,8 @@ public partial class Platform2D : Polygon2D
 	// }
 	public CollisionObject2D? CollisionObject
 		=> this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
-	private float LastCheckSum = float.NaN;
+	private float LastPolygon2DCheckSum = float.NaN;
+	private float LastPath2DCheckSum = float.NaN;
 	private IEnumerable<EdgeSettings> EdgesSettings => this.Profile?.EdgeTypes?.OfType<EdgeSettings>() ?? [];
 
 	// -----------------------------------------------------------------------------------------------------------------
@@ -144,26 +140,6 @@ public partial class Platform2D : Polygon2D
 	// -----------------------------------------------------------------------------------------------------------------
 	// GODOT EVENTS
 	// -----------------------------------------------------------------------------------------------------------------
-
-	public override void _EnterTree()
-	{
-		base._EnterTree();
-		if (Engine.IsEditorHint())
-		{
-			this.ChildEnteredTree += this.OnChildEnteredTreeInEditor;
-			// this.ChildExitingTree += this.OnChildExitingTreeInEditor;
-		}
-	}
-
-	public override void _ExitTree()
-	{
-		base._ExitTree();
-		if (Engine.IsEditorHint())
-		{
-			this.ChildEnteredTree -= this.OnChildEnteredTreeInEditor;
-			// this.ChildExitingTree -= this.OnChildExitingTreeInEditor;
-		}
-	}
 
 	public override void _Ready()
 	{
@@ -212,13 +188,8 @@ public partial class Platform2D : Polygon2D
 		=> new List<string>()
 			.Concat(this.Profile == null ? ["No profile assigned. Please assign a new profile resource in the inspector."] : [])
 			.Concat(
-				this.MimicChildPath
-					? this.GetChildren().OfType<Path2D>().Count() switch
-					{
-						0 => [$"Option {nameof(MimicChildPath)} is enabled, but there is no child Path2D node. Please add one."],
-						1 => [],
-						_ => ["Multiple child Path2D nodes found. There should be only a single one. Paths after the first will be ignored."],
-					}
+				this.MimicParentPath && this.GetParent() is not Path2D
+					? [$"When {nameof(MimicParentPath)} option is enabled, the {nameof(Platform2D)} should be a child of a {nameof(Path2D)} node. Please disable this option or fix the node hierarchy."]
 					: []
 			)
 			.ToArray();
@@ -245,18 +216,6 @@ public partial class Platform2D : Polygon2D
 		this.NotifyPropertyListChanged();
 	}
 
-	private void OnChildEnteredTreeInEditor(Node child)
-	{
-		if (child is Path2D path && path.GetParent() == this)
-		{
-			Path2DObserver observer = new();
-			observer.PathChanged += this.OnPathChanged;
-			path.AddChild(observer);
-		}
-	}
-
-	private void OnPathChanged(Path2D path) => this.Refresh();
-
 	// -----------------------------------------------------------------------------------------------------------------
 	// METHODS
 	// -----------------------------------------------------------------------------------------------------------------
@@ -282,12 +241,12 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	private void RefreshMimicPath2DVertexes()
 	{
-		if (!this.MimicChildPath || this.ChildPath2D == null)
+		if (!this.MimicParentPath || this.GetParent() is not Path2D parent)
 		{
 			return;
 		}
-		Vector2[] vertexes = this.ChildPath2D.Curve.GetBakedPoints()
-			.Select((vertex, index) => this.ChildPath2D.Transform * vertex)
+		Vector2[] vertexes = parent.Curve.GetBakedPoints()
+			.Select((vertex, index) => parent.Transform * vertex)
 			.ToArray();
 		this.Vertexes = vertexes.Where((vertex, i) => !IsOmittable(vertexes, i)).ToArray();
 	}
@@ -470,11 +429,46 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	private void CheckForChanges()
 	{
-		float checksum = Utils.HashF(this.Vertexes, this.InvertEnabled, this.InvertBorder);
-		if (this.LastCheckSum != checksum)
+		if (this.CheckForPolygon2DChanges())
 		{
 			this.Refresh();
 		}
-		this.LastCheckSum = checksum;
+		else if (this.CheckForPath2DChanges())
+		{
+			this.RefreshMimicPath2DVertexes();
+		}
+	}
+
+	private bool CheckForPolygon2DChanges() {
+		float checksum = Utils.HashF(this.Vertexes, this.InvertEnabled, this.InvertBorder);
+		bool changed = this.LastPolygon2DCheckSum != float.NaN && checksum != this.LastPolygon2DCheckSum;
+		this.LastPolygon2DCheckSum = checksum;
+		return changed;
+	}
+
+	private bool CheckForPath2DChanges()
+	{
+		if (this.GetParent() is not Path2D parent)
+		{
+			return false;
+		}
+		float checksum = Utils.HashF(
+			parent.Position,
+			parent.Scale,
+			parent.Rotation,
+			parent.Skew,
+			parent.Curve.BakeInterval,
+			Enumerable.Range(0, parent.Curve.PointCount)
+				.SelectMany(i => new Vector2[]
+				{
+					parent.Curve.GetPointPosition(i),
+					i != 0 ? parent.Curve.GetPointIn(i) : Vector2.Zero,
+					i != parent.Curve.PointCount -1 ? parent.Curve.GetPointOut(i) : Vector2.Zero
+				})
+				.ToArray()
+		);
+		bool changed = this.LastPath2DCheckSum != float.NaN && checksum != this.LastPath2DCheckSum;
+		this.LastPath2DCheckSum = checksum;
+		return changed;
 	}
 }
