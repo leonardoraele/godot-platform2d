@@ -45,8 +45,8 @@ public partial class Platform2D : Polygon2D
 			this.Refresh();
 		}
 	} = null;
-	[Export] public bool MimicParentPath
-		{ get => field; set { field = value; this.RefreshMimicPath2DVertexes(); } } = false;
+	[Export] public Path2D? MimicPath2D
+		{ get => field; set { field = value; this.RefreshMimicPath2DVertexes(); } } = null;
 
 	[ExportGroup("Has Collision")]
 	[Export(PropertyHint.GroupEnable)] public bool CollisionEnabled
@@ -187,11 +187,6 @@ public partial class Platform2D : Polygon2D
 	public override string[] _GetConfigurationWarnings()
 		=> new List<string>()
 			.Concat(this.Profile == null ? ["No profile assigned. Please assign a new profile resource in the inspector."] : [])
-			.Concat(
-				this.MimicParentPath && this.GetParent() is not Path2D
-					? [$"When {nameof(MimicParentPath)} option is enabled, the {nameof(Platform2D)} should be a child of a {nameof(Path2D)} node. Please disable this option or fix the node hierarchy."]
-					: []
-			)
 			.ToArray();
 
 	// -----------------------------------------------------------------------------------------------------------------
@@ -241,12 +236,12 @@ public partial class Platform2D : Polygon2D
 	/// </summary>
 	private void RefreshMimicPath2DVertexes()
 	{
-		if (!this.MimicParentPath || this.GetParent() is not Path2D parent)
+		if (this.MimicPath2D == null)
 		{
 			return;
 		}
-		Vector2[] vertexes = parent.Curve.GetBakedPoints()
-			.Select((vertex, index) => parent.Transform * vertex)
+		Vector2[] vertexes = this.MimicPath2D.Curve.GetBakedPoints()
+			.Select((vertex, index) => this.MimicPath2D.Transform * vertex)
 			.ToArray();
 		this.Vertexes = vertexes.Where((vertex, i) => !IsOmittable(vertexes, i)).ToArray();
 	}
@@ -448,22 +443,22 @@ public partial class Platform2D : Polygon2D
 
 	private bool CheckForPath2DChanges()
 	{
-		if (this.GetParent() is not Path2D parent)
+		if (this.MimicPath2D == null)
 		{
 			return false;
 		}
 		float checksum = Utils.HashF(
-			parent.Position,
-			parent.Scale,
-			parent.Rotation,
-			parent.Skew,
-			parent.Curve.BakeInterval,
-			Enumerable.Range(0, parent.Curve.PointCount)
+			this.MimicPath2D.Position,
+			this.MimicPath2D.Scale,
+			this.MimicPath2D.Rotation,
+			this.MimicPath2D.Skew,
+			this.MimicPath2D.Curve.BakeInterval,
+			Enumerable.Range(0, this.MimicPath2D.Curve.PointCount)
 				.SelectMany(i => new Vector2[]
 				{
-					parent.Curve.GetPointPosition(i),
-					i != 0 ? parent.Curve.GetPointIn(i) : Vector2.Zero,
-					i != parent.Curve.PointCount -1 ? parent.Curve.GetPointOut(i) : Vector2.Zero
+					this.MimicPath2D.Curve.GetPointPosition(i),
+					i != 0 ? this.MimicPath2D.Curve.GetPointIn(i) : Vector2.Zero,
+					i != this.MimicPath2D.Curve.PointCount -1 ? this.MimicPath2D.Curve.GetPointOut(i) : Vector2.Zero
 				})
 				.ToArray()
 		);
