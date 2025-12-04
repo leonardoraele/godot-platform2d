@@ -241,7 +241,8 @@ public partial class Platform2D : Polygon2D
 			return;
 		}
 		Vector2[] vertexes = this.MimicPath2D.Curve.GetBakedPoints()
-			.Select((vertex, index) => this.MimicPath2D.Transform * vertex)
+			.Select((vertex, index) => this.MimicPath2D.ToGlobal(vertex))
+			.Select(this.ToLocal)
 			.ToArray();
 		this.Vertexes = vertexes.Where((vertex, i) => !IsOmittable(vertexes, i)).ToArray();
 	}
