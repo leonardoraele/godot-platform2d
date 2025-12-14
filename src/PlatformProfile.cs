@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Godot;
 
@@ -14,22 +13,11 @@ public partial class PlatformProfile : Resource
 	// -----------------------------------------------------------------------------------------------------------------
 
 	private static Dictionary<ulong, WeakReference<PlatformProfile>> GlobalInstanceRepository = new();
+	public static IEnumerable<PlatformProfile> AllInstances => GlobalInstanceRepository.Values
+		.Select(wref => wref.TryGetTarget(out PlatformProfile? profile) ? profile : null)
+		.OfType<PlatformProfile>();
 
-	public static bool TryGetProfileForCornerSettings(CornerSpriteSettings settings, [NotNullWhen(true)] out PlatformProfile? result)
-	{
-		foreach (WeakReference<PlatformProfile> wref in GlobalInstanceRepository.Values)
-		{
-			if (wref.TryGetTarget(out PlatformProfile? profile) && profile.EdgeTypes?.Any(edge => edge?.CornerSprites?.Contains(settings) == true) == true)
-			{
-				result = profile;
-				return true;
-			}
-		}
-		result = null;
-		return false;
-	}
-
-	public PlatformProfile() => GlobalInstanceRepository.Add(this.GetInstanceId(), new WeakReference<PlatformProfile>(this));
+	public PlatformProfile() => GlobalInstanceRepository.Add(this.GetInstanceId(), new(this));
 	~PlatformProfile() => GlobalInstanceRepository.Remove(this.GetInstanceId());
 
 	// -----------------------------------------------------------------------------------------------------------------

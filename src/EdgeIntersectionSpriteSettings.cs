@@ -75,17 +75,19 @@ public partial class EdgeIntersectionSpriteSettings : CornerSpriteSettings
 	// -----------------------------------------------------------------------------------------------------------------
 
 	private List<(uint flag, string name)> EdgeFlagNames
-		=> PlatformProfile.TryGetProfileForCornerSettings(this, out PlatformProfile? profile)
-			? profile.EdgeTypes?.Index()
-				.OfType<(int index, EdgeSettings settings)>()
-				.Select(edge =>
-				{
-					uint flag = ((uint) 1) << edge.index;
-					return (flag, edge.settings.Name);
-				})
-				.ToList()
-				?? []
-			: [];
+		=> PlatformProfile.AllInstances.FirstOrDefault(profile =>
+				profile.EdgeTypes?.Any(edge => edge?.CornerSprites?.Contains(this) == true) == true
+			)
+			?.EdgeTypes?
+			.Index()
+			.OfType<(int index, EdgeSettings settings)>()
+			.Select(edge =>
+			{
+				uint flag = ((uint) 1) << edge.index;
+				return (flag, edge.settings.Name);
+			})
+			.ToList()
+			?? [];
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// SIGNALS
