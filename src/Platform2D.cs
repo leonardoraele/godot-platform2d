@@ -31,7 +31,9 @@ public partial class Platform2D : Polygon2D
 	// EXPORTS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	[ExportToolButton("Manual Refresh")] Callable ToolButtonRefresh => Callable.From(this.Refresh);
+	[Export] public new Color Color
+		{ get => field; set { field = base.Color = value; this.RefreshFillTexture(); } }
+		= Color.FromHtml("#1d2229");
 
 	[Export] public PlatformProfile? Profile
 	{
@@ -45,7 +47,7 @@ public partial class Platform2D : Polygon2D
 			this.Refresh();
 		}
 	} = null;
-	[Export] public Path2D? MimicPath2D
+	[Export] public Path2D? MimicPathShape
 		{ get => field; set { field = value; this.RefreshMimicPath2DVertexes(); } } = null;
 
 	[ExportGroup("Has Collision")]
@@ -62,6 +64,7 @@ public partial class Platform2D : Polygon2D
 		= 0f;
 
 	[ExportGroup("Debug Options")]
+	[ExportToolButton("Manual Refresh")] Callable ToolButtonRefresh => Callable.From(this.Refresh);
 	[Export] public bool ShowChildrenInSceneTree
 		{ get => field; set { field = value; this.Refresh(); } } = false;
 
@@ -165,6 +168,7 @@ public partial class Platform2D : Polygon2D
 
 	public override void _ValidateProperty(GodotDictionary property)
 	{
+		base._ValidateProperty(property);
 		switch (property["name"].AsString())
 		{
 			case "texture":
@@ -180,6 +184,12 @@ public partial class Platform2D : Polygon2D
 				property["usage"] = this.CollisionObject == null || this.CollisionPolygon2D == null
 					? Variant.From(PropertyUsageFlags.Default)
 					: Variant.From(PropertyUsageFlags.NoEditor);
+				break;
+			default:
+				if (property["name"].AsString() == Polygon2D.PropertyName.Color)
+				{
+					property["usage"] = (long) PropertyUsageFlags.NoEditor;
+				}
 				break;
 		}
 	}
@@ -229,19 +239,23 @@ public partial class Platform2D : Polygon2D
 		this.InternalVertexCount = default;
 	}
 
-	private void RefreshFillTexture() => this.Profile?.ConfigureTexture(this);
+	private void RefreshFillTexture()
+	{
+		base.Color = this.Color;
+		this.Profile?.ConfigureTexture(this);
+	}
 
 	/// <summary>
 	/// Sets this Polygon2D's vertex positions based on the child Path2D nodes, if any.
 	/// </summary>
 	private void RefreshMimicPath2DVertexes()
 	{
-		if (this.MimicPath2D == null)
+		if (this.MimicPathShape == null)
 		{
 			return;
 		}
-		Vector2[] vertexes = this.MimicPath2D.Curve.GetBakedPoints()
-			.Select((vertex, index) => this.MimicPath2D.ToGlobal(vertex))
+		Vector2[] vertexes = this.MimicPathShape.Curve.GetBakedPoints()
+			.Select((vertex, index) => this.MimicPathShape.ToGlobal(vertex))
 			.Select(this.ToLocal)
 			.ToArray();
 		this.Vertexes = vertexes.Where((vertex, i) => !IsOmittable(vertexes, i)).ToArray();
@@ -444,22 +458,22 @@ public partial class Platform2D : Polygon2D
 
 	private bool CheckForPath2DChanges()
 	{
-		if (this.MimicPath2D == null)
+		if (this.MimicPathShape == null)
 		{
 			return false;
 		}
 		float checksum = Utils.HashF(
-			this.MimicPath2D.Position,
-			this.MimicPath2D.Scale,
-			this.MimicPath2D.Rotation,
-			this.MimicPath2D.Skew,
-			this.MimicPath2D.Curve.BakeInterval,
-			Enumerable.Range(0, this.MimicPath2D.Curve.PointCount)
+			this.MimicPathShape.Position,
+			this.MimicPathShape.Scale,
+			this.MimicPathShape.Rotation,
+			this.MimicPathShape.Skew,
+			this.MimicPathShape.Curve.BakeInterval,
+			Enumerable.Range(0, this.MimicPathShape.Curve.PointCount)
 				.SelectMany(i => new Vector2[]
 				{
-					this.MimicPath2D.Curve.GetPointPosition(i),
-					i != 0 ? this.MimicPath2D.Curve.GetPointIn(i) : Vector2.Zero,
-					i != this.MimicPath2D.Curve.PointCount -1 ? this.MimicPath2D.Curve.GetPointOut(i) : Vector2.Zero
+					this.MimicPathShape.Curve.GetPointPosition(i),
+					i != 0 ? this.MimicPathShape.Curve.GetPointIn(i) : Vector2.Zero,
+					i != this.MimicPathShape.Curve.PointCount -1 ? this.MimicPathShape.Curve.GetPointOut(i) : Vector2.Zero
 				})
 				.ToArray()
 		);
