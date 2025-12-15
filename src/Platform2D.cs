@@ -24,16 +24,14 @@ public partial class Platform2D : Polygon2D
 	// STATICS
 	// -----------------------------------------------------------------------------------------------------------------
 
+	public static readonly Color DEFAULT_COLOR = Color.FromHtml("#1d2229");
+
 	public static readonly string EdgeLineGroupName = $"{nameof(Platform2D)}__{nameof(EdgeLineGroupName)}";
 	public static readonly string LineSpritesGroupName = $"{nameof(Platform2D)}__{nameof(LineSpritesGroupName)}";
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// EXPORTS
 	// -----------------------------------------------------------------------------------------------------------------
-
-	[Export] public new Color Color
-		{ get => field; set { field = base.Color = value; this.RefreshFillTexture(); } }
-		= Color.FromHtml("#1d2229");
 
 	[Export] public PlatformProfile? Profile
 	{
@@ -241,7 +239,7 @@ public partial class Platform2D : Polygon2D
 
 	private void RefreshFillTexture()
 	{
-		base.Color = this.Color;
+		base.Color = this.Profile?.Color ?? DEFAULT_COLOR;
 		this.Profile?.ConfigureTexture(this);
 	}
 

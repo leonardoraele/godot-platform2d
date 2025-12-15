@@ -24,6 +24,10 @@ public partial class PlatformProfile : Resource
 	// EXPORTS
 	// -----------------------------------------------------------------------------------------------------------------
 
+	[Export] public Color Color
+		{ get => field; set { field = value; this.EmitChanged(); } }
+		= Platform2D.DEFAULT_COLOR;
+
 	[ExportGroup("Fill Sprites", "Fill")]
 	[Export(PropertyHint.GroupEnable)] public bool FillEnabled
 		{ get => field; set { field = value; this.EmitChanged(); } } = false;
