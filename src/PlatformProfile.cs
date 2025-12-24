@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
@@ -8,18 +6,6 @@ namespace Raele.Platform2D;
 [Tool][GlobalClass]
 public partial class PlatformProfile : Resource
 {
-	// -----------------------------------------------------------------------------------------------------------------
-	// STATICS
-	// -----------------------------------------------------------------------------------------------------------------
-
-	private static Dictionary<ulong, WeakReference<PlatformProfile>> GlobalInstanceRepository = new();
-	public static IEnumerable<PlatformProfile> AllInstances => GlobalInstanceRepository.Values
-		.Select(wref => wref.TryGetTarget(out PlatformProfile? profile) ? profile : null)
-		.OfType<PlatformProfile>();
-
-	public PlatformProfile() => GlobalInstanceRepository.Add(this.GetInstanceId(), new(this));
-	~PlatformProfile() => GlobalInstanceRepository.Remove(this.GetInstanceId());
-
 	// -----------------------------------------------------------------------------------------------------------------
 	// EXPORTS
 	// -----------------------------------------------------------------------------------------------------------------
@@ -41,10 +27,23 @@ public partial class PlatformProfile : Resource
 		{ get => field; set { field = value; this.EmitChanged(); } } = 0.0f;
 
 	[ExportGroup("Edge Sprites")]
-	[Export] public Godot.Collections.Array<EdgeSettings?>? EdgeTypes
-		{ get => field; set { field = value; Utils.ObserveArrayExport(this, field); this.EmitChanged(); } } = [];
-	[Export] public Godot.Collections.Array<EdgeIntersectionSpriteSettings?>? EdgeIntersectionCorners
-		{ get => field; set { field = value; Utils.ObserveArrayExport(this, field); this.EmitChanged(); } } = [];
+	[Export] public Godot.Collections.Array<EdgeSettings?> EdgeTypes
+		{ get => field; set { field = value; Utils.ObserveArrayExport(this, field); this.EmitChanged(); } }
+		= [];
+	[Export] public Godot.Collections.Array<EdgeIntersectionSpriteSettings?> EdgeIntersectionCorners
+		{
+			get => field;
+			set {
+				field = value;
+				foreach (EdgeIntersectionSpriteSettings settings in field.OfType<EdgeIntersectionSpriteSettings>())
+				{
+					settings.Owner = this;
+					Utils.TryConnect(settings, Resource.SignalName.Changed, this.EmitChanged);
+				}
+				this.EmitChanged();
+			}
+		}
+		= [];
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// PROPERTIES

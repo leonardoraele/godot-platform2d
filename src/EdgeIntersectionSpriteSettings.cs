@@ -27,7 +27,7 @@ public partial class EdgeIntersectionSpriteSettings : CornerSpriteSettings
 	/// bitfield to select which edges this corner sprite applies to. Changing this field updates the
 	/// <see cref="ApplicableEdgeNames"/> field.
 	/// </summary>
-	[Export(PropertyHint.Flags)] public uint ApplicableEdges
+	[Export] public uint ApplicableEdges
 	{
 		get
 		{
@@ -68,18 +68,14 @@ public partial class EdgeIntersectionSpriteSettings : CornerSpriteSettings
 	// FIELDS
 	// -----------------------------------------------------------------------------------------------------------------
 
-
+	public PlatformProfile? Owner;
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// PROPERTIES
 	// -----------------------------------------------------------------------------------------------------------------
 
 	private List<(uint flag, string name)> EdgeFlagNames
-		=> PlatformProfile.AllInstances.FirstOrDefault(profile =>
-				profile.EdgeTypes?.Any(edge => edge?.CornerSprites?.Contains(this) == true) == true
-			)
-			?.EdgeTypes?
-			.Index()
+		=> this.Owner?.EdgeTypes.Index()
 			.OfType<(int index, EdgeSettings settings)>()
 			.Select(edge =>
 			{
@@ -137,9 +133,10 @@ public partial class EdgeIntersectionSpriteSettings : CornerSpriteSettings
 		base._ValidateProperty(property);
 		if (property["name"].AsString() == nameof(this.ApplicableEdges))
 		{
-			property["usage"] = (long) PropertyUsageFlags.Editor; // Shown in the editor but not saved
+			property["hint"] = (long) PropertyHint.Flags;
 			property["hint_string"] = this.EdgeFlagNames.Select(tuple => $"{tuple.name}:{tuple.flag}")
 				.Aggregate("", (a, b) => $"{a},{b}");
+			property["usage"] = (long) PropertyUsageFlags.Editor; // Shown in the editor but not saved
 		}
 		else if (property["name"].AsString() == nameof(this.ApplicableEdgeNames))
 		{

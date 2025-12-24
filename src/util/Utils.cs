@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Godot;
+using static Godot.GodotObject;
 
 namespace Raele.Platform2D;
 
@@ -83,39 +84,65 @@ public static class Utils
 				Variant.From(variant.AsGodotDictionary().Keys),
 				Variant.From(variant.AsGodotDictionary().Values)
 			),
-			Variant.Type.Array => variant.AsGodotArray().Select(HashF).Sum(),
-			Variant.Type.PackedByteArray => variant.AsByteArray().Select(b => b / (float) byte.MaxValue).Sum(),
-			Variant.Type.PackedInt32Array => variant.AsInt32Array().Select(i => HashF(i)).Sum(),
-			Variant.Type.PackedInt64Array => variant.AsInt64Array().Select(i => HashF(i)).Sum(),
-			Variant.Type.PackedFloat32Array => variant.AsFloat32Array().Select(f => HashF(f)).Sum(),
-			Variant.Type.PackedFloat64Array => variant.AsFloat64Array().Select(f => HashF(f)).Sum(),
-			Variant.Type.PackedStringArray => variant.AsStringArray().Select(s => HashF(s)).Sum(),
-			Variant.Type.PackedVector2Array => variant.AsVector2Array().Select(v => HashF(v)).Sum(),
-			Variant.Type.PackedVector3Array => variant.AsVector3Array().Select(v => HashF(v)).Sum(),
-			Variant.Type.PackedVector4Array => variant.AsVector4Array().Select(v => HashF(v)).Sum(),
-			Variant.Type.PackedColorArray => variant.AsColorArray().Select(c => HashF(c)).Sum(),
+			Variant.Type.Array => variant.AsGodotArray().Sum(HashF),
+			Variant.Type.PackedByteArray => variant.AsByteArray().Sum(b => b / (float) byte.MaxValue),
+			Variant.Type.PackedInt32Array => variant.AsInt32Array().Sum(i => HashF(i)),
+			Variant.Type.PackedInt64Array => variant.AsInt64Array().Sum(i => HashF(i)),
+			Variant.Type.PackedFloat32Array => variant.AsFloat32Array().Sum(f => HashF(f)),
+			Variant.Type.PackedFloat64Array => variant.AsFloat64Array().Sum(f => HashF(f)),
+			Variant.Type.PackedStringArray => variant.AsStringArray().Sum(s => HashF(s)),
+			Variant.Type.PackedVector2Array => variant.AsVector2Array().Sum(v => HashF(v)),
+			Variant.Type.PackedVector3Array => variant.AsVector3Array().Sum(v => HashF(v)),
+			Variant.Type.PackedVector4Array => variant.AsVector4Array().Sum(v => HashF(v)),
+			Variant.Type.PackedColorArray => variant.AsColorArray().Sum(c => HashF(c)),
 			_ => 0f
 		};
-	public static float HashF(params Variant[] variants) => variants.Select(HashF).Sum();
+
+	public static float HashF(params Variant[] variants) => variants.Sum(HashF);
 
 	public static void ObserveArrayExport<[MustBeVariant] T>(Resource subject, Godot.Collections.Array<T?>? array)
 	{
-		foreach (T? item in array ?? [])
+		foreach (Resource resource in array?.OfType<Resource>() ?? [])
 		{
-			if (item is Resource resource)
-			{
-				bool signalAlreadyConnected = resource.GetSignalConnectionList(PlatformProfile.SignalName.Changed)
-					.Select(signal => signal["callable"].AsCallable())
-					.Any(callable =>
-					{
-						return callable.Target == subject && callable.Method == nameof(Resource.MethodName.EmitChanged)
-							|| callable.Delegate.Target == subject && callable.Delegate.Method.Name == nameof(Resource.MethodName.EmitChanged);
-					});
-				if (!signalAlreadyConnected)
-				{
-					resource.Changed += subject.EmitChanged;
-				}
-			}
+			Utils.TryConnect(resource, Resource.SignalName.Changed, new Callable(subject,Resource.MethodName.EmitChanged));
 		}
 	}
+
+	public static bool TryConnect(GodotObject subject, StringName signalName, Action action, params ConnectFlags[] flags)
+		=> Utils.TryConnect(subject, signalName, Callable.From(action), flags);
+
+	/// <summary>
+	/// Similar to <see cref="Godot.Connect"/>, but if the signal is already connected, returns `false` instead of
+	/// throwing an exception. If the signal connection is created, returns `true`.
+	/// </summary>
+	public static bool TryConnect(GodotObject subject, StringName signalName, Callable callable, params ConnectFlags[] flags)
+	{
+		uint flagsInt = flags.Select(flag => (uint) flag).Aggregate(0u, (a, b) => a | b);
+		return Utils.TryConnect(subject, signalName, callable, flagsInt);
+	}
+
+	public static bool TryConnect(GodotObject subject, StringName signalName, Callable callable, long flags)
+	{
+		if (Utils.TestSignalConnected(subject, signalName, callable, flags))
+		{
+			return false;
+		}
+		subject.Connect(signalName, callable, (uint) flags);
+		return true;
+	}
+
+	private static bool TestSignalConnected(
+		GodotObject subject,
+		StringName signalName,
+		Callable test,
+		long flags
+	)
+		=> subject.GetSignalConnectionList(signalName)
+			.Where(signal => signal["flags"].AsInt64() == flags)
+			.Select(signal => signal["callable"].AsCallable())
+			.Any(callable => CallableEquals(callable, test));
+
+	public static bool CallableEquals(Callable lhs, Callable rhs)
+		=> lhs.Target == rhs.Target
+			&& (lhs.Method ?? lhs.Delegate.Method.Name) == (rhs.Method ?? rhs.Delegate.Method.Name);
 }

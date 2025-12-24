@@ -120,7 +120,7 @@ public partial class Platform2D : Polygon2D
 		=> this.GetChildren().FirstOrDefault(child => child is CollisionObject2D) as CollisionObject2D;
 	private float LastPolygon2DCheckSum = float.NaN;
 	private float LastPath2DCheckSum = float.NaN;
-	private IEnumerable<EdgeSettings> EdgesSettings => this.Profile?.EdgeTypes?.OfType<EdgeSettings>() ?? [];
+	private IEnumerable<EdgeSettings> EdgesSettings => this.Profile?.EdgeTypes.OfType<EdgeSettings>() ?? [];
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// SIGNALS
