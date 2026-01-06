@@ -7,6 +7,7 @@ namespace Raele.Platform2D;
 
 public static class Utils
 {
+	// TODO We should probably use variant.GetHashCode() and/or HashCode.Combine()
 	/// <summary>
 	/// Gets a variant and returns a float that describes that value near-uniquely, similar to a hash. The return is not
 	/// guaranteed to be unique, but different inputs should ideally return different outputs. The returned float is
