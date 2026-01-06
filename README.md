@@ -1,4 +1,4 @@
-# Platform2D (WIP)
+# Platform2D (WIP) <!-- Rename to PolyShape2D -->
 
 A Godot 4.x plugin that adds the `Platform2D` node,
 which is an extended `Polygon2D` with extra features like
@@ -14,7 +14,14 @@ automatic edge sprite placement.
 
 - **Curved Edges.** Draw your platforms using Path2D curves and let the plugin automatically generate the polygon mesh.
 - **Automatic Collision Generation.** Collision shapes are automatically generated and kept updated based on the polygon's shape.
-- **Automatic Line2D Placement** Line2D nodes are automatically positioned over the polygon's surface on specified normal angles.
+- **Automatic Line2D Placement.** Line2D nodes are automatically positioned over the polygon's surface on specified normal angles.
+
+**Planned/Future:**
+
+- **Automatic Light Occlusion.** Automatically generate a `LightOccluder2D` and position it over the polygon's area.
+- **Navigation.** Select whether the shape represents an obstacle or a movable area and a `NavigationRegion2D` or a `NavigationObstacle2D` will be automatically generated and positioned accordingly.
+- **Automatic Shaping.** Automatically generate the polygon's shape based on parameters like `geometry` (e.g. "circle", "star", "hexagon", etc.), `radius`, `sides`, etc.
+- **Split/Merge.** Cut the polygon in the middle to split it into two, or merge two polygons into one.
 
 ## Installation
 
