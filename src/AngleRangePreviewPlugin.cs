@@ -1,7 +1,7 @@
 #if TOOLS
 using Godot;
 
-namespace Raele.Platform2D;
+namespace Raele.Polyshape2D;
 
 [Tool]
 public partial class AngleRangePreviewPlugin : EditorInspectorPlugin

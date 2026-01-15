@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
-    <RootNamespace>Raele.Platform2D</RootNamespace>
+    <RootNamespace>Raele.Polyshape2D</RootNamespace>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 </Project>

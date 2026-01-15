@@ -4,7 +4,7 @@ using System.Linq;
 using Godot;
 using GodotDictionary = Godot.Collections.Dictionary;
 
-namespace Raele.Platform2D;
+namespace Raele.Polyshape2D;
 
 [Tool][GlobalClass]
 public partial class EdgeIntersectionSpriteSettings : CornerSpriteSettings
@@ -68,7 +68,7 @@ public partial class EdgeIntersectionSpriteSettings : CornerSpriteSettings
 	// FIELDS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	public PlatformProfile? Owner;
+	public PolyshapeProfile? Owner;
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// PROPERTIES

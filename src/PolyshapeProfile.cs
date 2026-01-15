@@ -1,10 +1,10 @@
 using System.Linq;
 using Godot;
 
-namespace Raele.Platform2D;
+namespace Raele.Polyshape2D;
 
 [Tool][GlobalClass]
-public partial class PlatformProfile : Resource
+public partial class PolyshapeProfile : Resource
 {
 	// -----------------------------------------------------------------------------------------------------------------
 	// EXPORTS
@@ -12,7 +12,7 @@ public partial class PlatformProfile : Resource
 
 	[Export] public Color Color
 		{ get => field; set { field = value; this.EmitChanged(); } }
-		= Platform2D.DEFAULT_COLOR;
+		= Polyshape2D.DEFAULT_COLOR;
 
 	[ExportGroup("Fill Sprites", "Fill")]
 	[Export(PropertyHint.GroupEnable)] public bool FillEnabled

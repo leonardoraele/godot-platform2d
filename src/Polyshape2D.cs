@@ -4,7 +4,7 @@ using System.Linq;
 using Godot;
 using GodotDictionary = Godot.Collections.Dictionary;
 
-namespace Raele.Platform2D;
+namespace Raele.Polyshape2D;
 
 // TODO Add option to randomly place selected texture sprites on the polygon (on either edge or fill) — for decorations
 // or variation.
@@ -18,7 +18,7 @@ namespace Raele.Platform2D;
 // TODO Consider how to handle "holes" in polygons (e.g. donut shapes).
 
 [Tool]
-public partial class Platform2D : Polygon2D
+public partial class Polyshape2D : Polygon2D
 {
 	// -----------------------------------------------------------------------------------------------------------------
 	// STATICS
@@ -26,14 +26,14 @@ public partial class Platform2D : Polygon2D
 
 	public static readonly Color DEFAULT_COLOR = Color.FromHtml("#1d2229");
 
-	public static readonly string EdgeLineGroupName = $"{nameof(Platform2D)}__{nameof(EdgeLineGroupName)}";
-	public static readonly string LineSpritesGroupName = $"{nameof(Platform2D)}__{nameof(LineSpritesGroupName)}";
+	public static readonly string EdgeLineGroupName = $"{nameof(Polyshape2D)}__{nameof(EdgeLineGroupName)}";
+	public static readonly string LineSpritesGroupName = $"{nameof(Polyshape2D)}__{nameof(LineSpritesGroupName)}";
 
 	// -----------------------------------------------------------------------------------------------------------------
 	// EXPORTS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	[Export] public PlatformProfile? Profile
+	[Export] public PolyshapeProfile? Profile
 	{
 		get => field;
 		set {
@@ -331,7 +331,7 @@ public partial class Platform2D : Polygon2D
 	{
 		IEnumerator<(int index, Line2D line)> lineQueue = this.GetChildren()
 			.OfType<Line2D>()
-			.Where(line => line.IsInGroup(Platform2D.EdgeLineGroupName))
+			.Where(line => line.IsInGroup(Polyshape2D.EdgeLineGroupName))
 			.Index()
 			.GetEnumerator();
 
@@ -347,7 +347,7 @@ public partial class Platform2D : Polygon2D
 				edgeInfo.settings.Apply(line);
 				line.Closed = result.Closed;
 				line.Owner = this.ShowChildrenInSceneTree ? this.Owner : null;
-				line.AddToGroup(Platform2D.EdgeLineGroupName);
+				line.AddToGroup(Polyshape2D.EdgeLineGroupName);
 				if (line.GetParent() != this)
 				{
 					this.AddChild(line);
@@ -368,7 +368,7 @@ public partial class Platform2D : Polygon2D
 	private void RefreshEdgeSprites(EdgeSettings edgeSettings, Line2D line)
 	{
 		IEnumerator<Sprite2D> lineSprites = line.GetChildren().OfType<Sprite2D>()
-			.Where(sprite => sprite.IsInGroup(Platform2D.LineSpritesGroupName))
+			.Where(sprite => sprite.IsInGroup(Polyshape2D.LineSpritesGroupName))
 			.GetEnumerator();
 
 		// Begin cap sprite
@@ -416,7 +416,7 @@ public partial class Platform2D : Polygon2D
 	{
 		Sprite2D sprite = new();
 		line.AddChild(sprite);
-		sprite.AddToGroup(Platform2D.LineSpritesGroupName);
+		sprite.AddToGroup(Polyshape2D.LineSpritesGroupName);
 		sprite.Owner = this.ShowChildrenInSceneTree ? this.Owner : null;
 		return sprite;
 	}

@@ -1,6 +1,6 @@
 using Godot;
 
-namespace Raele.Platform2D;
+namespace Raele.Polyshape2D;
 
 [Tool][GlobalClass]
 public partial class SpriteSettings : Resource

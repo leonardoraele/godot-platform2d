@@ -1,6 +1,6 @@
 using Godot;
 
-namespace Raele.Platform2D;
+namespace Raele.Polyshape2D;
 
 public record PolygonEdge(Vector2 Left, Vector2 Right)
 {

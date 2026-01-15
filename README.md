@@ -1,6 +1,6 @@
-# Platform2D (WIP) <!-- Rename to PolyShape2D -->
+# Polyshape2D (WIP)
 
-A Godot 4.x plugin that adds the `Platform2D` node,
+A Godot 4.x plugin that adds the `Polyshape2D` node,
 which is an extended `Polygon2D` with extra features like
 curved edges,
 automatic collision shape generation, and
@@ -25,24 +25,24 @@ automatic edge sprite placement.
 
 ## Installation
 
-1. Copy the `Platform2D` folder into your project's `addons/` directory
+1. Copy the `Polyshape2D` folder into your project's `addons/` directory
 2. Enable the plugin in **Project Settings → Plugins**
-3. The `Platform2D` node will now be available in the "Add Node" dialog
+3. The `Polyshape2D` node will now be available in the "Add Node" dialog
 
 <!--
 ## Usage
 
 ### Basic Setup
 
-1. Add a `Platform2D` node to your scene
-2. Add one or more `Path2D` nodes as children of the `Platform2D`
+1. Add a `Polyshape2D` node to your scene
+2. Add one or more `Path2D` nodes as children of the `Polyshape2D`
 3. Edit the Path2D curves to define your platform shape
 4. The polygon mesh will automatically generate based on the path points
 
 ### Example Scene Structure
 
 ```
-Platform2D
+Polyshape2D
 ├── Path2D (defines the platform outline)
 ├── Path2D (optional: additional polygons)
 └── StaticBody2D (add your own collision shapes)
@@ -55,12 +55,12 @@ Platform2D
 
 - Each `Path2D` child node represents a separate polygon
 - The plugin uses the baked points from each path's curve
-- Multiple paths create multiple polygons within the same Platform2D node
+- Multiple paths create multiple polygons within the same Polyshape2D node
 - Changes to Path2D properties automatically trigger polygon regeneration
 
 ## Configuration
 
-Platform2D inherits all properties from `Polygon2D`, including:
+Polyshape2D inherits all properties from `Polygon2D`, including:
 
 - **Texture** - Apply textures to your platform
 - **Color** - Tint the platform mesh

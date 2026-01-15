@@ -3,7 +3,7 @@ using System.Linq;
 using Godot;
 using static Godot.GodotObject;
 
-namespace Raele.Platform2D;
+namespace Raele.Polyshape2D;
 
 public static class Utils
 {

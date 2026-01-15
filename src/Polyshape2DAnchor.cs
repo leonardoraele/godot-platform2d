@@ -2,10 +2,10 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
-namespace Raele.Platform2D;
+namespace Raele.Polyshape2D;
 
 [Tool]
-public partial class Platform2DAnchor : Node2D
+public partial class Polyshape2DAnchor : Node2D
 {
 	// -----------------------------------------------------------------------------------------------------------------
 	// STATICS
@@ -23,7 +23,7 @@ public partial class Platform2DAnchor : Node2D
 	// FIELDS
 	// -----------------------------------------------------------------------------------------------------------------
 
-	private Platform2D? Parent;
+	private Polyshape2D? Parent;
 	private Vector2 LastCalculatedPosition = Vector2.Inf;
 
 	// -----------------------------------------------------------------------------------------------------------------
@@ -53,7 +53,7 @@ public partial class Platform2DAnchor : Node2D
 	public override void _EnterTree()
 	{
 		base._EnterTree();
-		this.Parent = this.GetParent() as Platform2D;
+		this.Parent = this.GetParent() as Polyshape2D;
 	}
 
 	// public override void _ExitTree()
@@ -115,7 +115,7 @@ public partial class Platform2DAnchor : Node2D
 		=> new List<string>()
 			.Concat(
 				this.Parent == null
-					? [$"The {nameof(Platform2DAnchor)} node must be a child of a {nameof(Platform2D)} node."]
+					? [$"The {nameof(Polyshape2DAnchor)} node must be a child of a {nameof(Polyshape2D)} node."]
 					: []
 			)
 			.ToArray();
